@@ -255,7 +255,7 @@ static void check_text_change(bool doing_escape)
 		  (main_buffer, NULL, &iter, FALSE);
 	       gtk_text_view_scroll_mark_onscreen(main_transcript, end_mark);
 	       // allow this first scroll to complete before we do this second
-	       g_idle_add_full(G_PRIORITY_HIGH_IDLE+15,
+	       g_idle_add_full(G_PRIORITY_HIGH_IDLE+25,
 			       scroll_transcript_to_mark,
 			       start_mark, NULL);
 
@@ -782,7 +782,7 @@ on_key_snoop(GtkWidget *grab_widget, GdkEventKey *event, gpointer func_data) {
       case GDK_ISO_Enter:
       case GDK_KP_Enter:
       case GDK_Return:
-	 on_main_accept_clicked(GTK_BUTTON(SDG("main_accept")), NULL);
+	 on_main_accept_clicked(GTK_BUTTON(SDG("main_accept")), main_entry);
 	 return TRUE; // handled it.
       case GDK_Tab:
       case GDK_KP_Tab:
@@ -802,15 +802,146 @@ on_key_snoop(GtkWidget *grab_widget, GdkEventKey *event, gpointer func_data) {
 }
 
 void
-on_main_accept_clicked                 (GtkButton       *button,
-                                        gpointer         user_data)
-{
-   g_warning("accept!");
+on_main_accept_clicked(GtkButton *button, gpointer user_data) {
+      GtkTreeView *main_cmds;
+      GtkTreeSelection *sel;
+      GtkTreeIter menuIter;
+      GtkTreeModel *main_list;
+      gboolean is_selection, is_enter_pressed;
+      int matches;
+
+      erase_questionable_stuff();
+
+      main_cmds = GTK_TREE_VIEW(SDG("main_cmds"));
+      sel = gtk_tree_view_get_selection(main_cmds);
+      is_selection=gtk_tree_selection_get_selected(sel, &main_list, &menuIter);
+      is_enter_pressed = user_data ? true : false;
+
+      // If the user moves around in the call menu (listbox) while there is
+      // stuff in the edit box, and then types a CR, we need to clear the
+      // edit box, so that the listbox selection will be taken exactly.
+      // This is because the wandering around in the call menu may have
+      // gone to something that has nothing to do with what was typed
+      // in the edit box.  We detect this condition by noticing that the
+      // listbox selection has changed from what we left it when we were
+      // last trying to make the call menu track the edit box.
+
+      // We also do this if the user selected by clicking the mouse.
+
+      if ((!is_enter_pressed) || menu_moved) {
+	 gtk_entry_set_text(GTK_ENTRY(SDG("main_entry")), "");
+         erase_matcher_input();
+      }
+
+      // Look for abbreviations.
+
+      {
+         abbrev_block *asearch = (abbrev_block *) 0;
+
+         if (nLastOne == match_startup_commands)
+            asearch = abbrev_table_start;
+         else if (nLastOne == match_resolve_commands)
+            asearch = abbrev_table_resolve;
+         else if (nLastOne >= 0)
+            asearch = abbrev_table_normal;
+
+         for ( ; asearch ; asearch = asearch->next) {
+            if (!strcmp(asearch->key, GLOB_user_input)) {
+               char linebuff[INPUT_TEXTLINE_SIZE+1];
+               if (process_accel_or_abbrev(asearch->value, linebuff)) {
+		  // Erase the edit box.
+		  gtk_entry_set_text(GTK_ENTRY(SDG("main_entry")), "");
+                  WaitingForCommand = false;
+                  return;
+               }
+
+               return;   // Couldn't be processed.  Stop.  No other abbreviations will match.
+            }
+         }
+      }
+
+      matches = match_user_input(nLastOne, false, false, false);
+      user_match = GLOB_match;
+
+      /* We forbid a match consisting of two or more "direct parse" concepts, such as
+         "grand cross".  Direct parse concepts may only be stacked if they are followed
+         by a call.  The "match.next" field indicates that direct parse concepts
+         were stacked. */
+
+      if ((matches == 1 || matches - GLOB_yielding_matches == 1 || user_match.exact) &&
+          ((!user_match.match.packed_next_conc_or_subcall &&
+            !user_match.match.packed_secondary_subcall) ||
+           user_match.match.kind == ui_call_select ||
+           user_match.match.kind == ui_concept_select)) {
+
+         // The matcher found an acceptable (and possibly quite complex)
+         // utterance.  Use it directly.
+
+	 gtk_entry_set_text(GTK_ENTRY(SDG("main_entry")), "");  // Erase the edit box.
+         WaitingForCommand = false;
+         return;
+      }
+
+      // The matcher isn't happy.  If we got here because the user typed <enter>,
+      // that's not acceptable.  Just ignore it.  Unless, of course, the type-in
+      // buffer was empty and the user scrolled around, in which case the user
+      // clearly meant to accept the currently highlighted item.
+
+      if (is_enter_pressed && (GLOB_user_input[0] != '\0' || !menu_moved))
+	 return;
+
+      // Or if, for some reason, the menu isn't anywhere, we don't accept it.
+
+      if (!is_selection) return;
+
+      // But if the user clicked on "accept", or did an acceptable single- or
+      // double-click of a menu item, that item is clearly what she wants, so
+      // we use it.
+
+      gtk_tree_model_get(main_list, &menuIter,
+			 1, &(user_match.match.index),
+			 2, &(user_match.match.kind), -1);
+
+   use_computed_match:
+
+      user_match.match.packed_next_conc_or_subcall = 0;
+      user_match.match.packed_secondary_subcall = 0;
+      user_match.match.call_conc_options = null_options;
+      user_match.real_next_subcall = (match_result *) 0;
+      user_match.real_secondary_subcall = (match_result *) 0;
+
+      gtk_entry_set_text(GTK_ENTRY(SDG("main_entry")), "");  // Erase the edit box.
+
+      /* We have the needed info.  Process it and exit from the command loop.
+         However, it's not a fully filled in match item from the parser.
+         So we need to concoct a low-class match item. */
+
+      if (nLastOne == match_number) {
+      }
+      else if (nLastOne == match_circcer) {
+         user_match.match.call_conc_options.circcer =
+            user_match.match.index+1;
+      }
+      else if (nLastOne >= match_taggers &&
+               nLastOne < match_taggers+NUM_TAGGER_CLASSES) {
+         user_match.match.call_conc_options.tagger =
+            ((nLastOne-match_taggers) << 5)+user_match.match.index+1;
+      }
+      else {
+         if (user_match.match.kind == ui_concept_select) {
+            user_match.match.concept_ptr =
+               &concept_descriptor_table[user_match.match.index];
+         }
+         else if (user_match.match.kind == ui_call_select) {
+            user_match.match.call_ptr =
+               main_call_lists[parse_state.call_list_to_use][user_match.match.index];
+         }
+      }
+
+      WaitingForCommand = false;
 }
+/// 1546
 
-
-
-/// 1375
 
 // extra stuff:
 void
