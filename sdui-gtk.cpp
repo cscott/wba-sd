@@ -257,7 +257,7 @@ static void check_text_change(bool doing_escape)
 		  (main_buffer, NULL, &iter, FALSE);
 	       gtk_text_view_scroll_mark_onscreen(main_transcript, end_mark);
 	       // allow this first scroll to complete before we do this second
-	       g_idle_add_full(G_PRIORITY_HIGH_IDLE+25,
+	       g_idle_add_full(G_PRIORITY_LOW,
 			       scroll_transcript_to_mark,
 			       start_mark, NULL);
 
@@ -383,6 +383,7 @@ static popup_return do_general_text_popup(Cstring prompt1, Cstring prompt2,
    gtk_label_set_text(GTK_LABEL(SDG("text_line1")), prompt1);
    gtk_label_set_text(GTK_LABEL(SDG("text_line2")), prompt2);
    gtk_entry_set_text(GTK_ENTRY(SDG("text_entry")), seed);
+   gtk_widget_grab_focus(SDG("text_entry"));
    gtk_widget_show(window_text);
    result = gtk_dialog_run(GTK_DIALOG(window_text));
    gtk_widget_hide(window_text);
@@ -624,6 +625,12 @@ int main(int argc, char **argv) {
 				     (GtkIconSize)-1, "sd");
    gtk_window_set_icon(GTK_WINDOW(window_font), ico_font);
    g_object_unref(ico_font);
+
+   /* Set default buttons */
+   gtk_dialog_set_default_response(GTK_DIALOG(window_startup),GTK_RESPONSE_OK);
+   gtk_dialog_set_default_response(GTK_DIALOG(window_text), GTK_RESPONSE_OK);
+   gtk_dialog_set_default_response(GTK_DIALOG(window_font), GTK_RESPONSE_OK);
+   gtk_widget_grab_default(SDG("main_accept"));
    
    /* connect the signals in the interface */
    glade_xml_signal_autoconnect(sd_xml);
@@ -1439,6 +1446,7 @@ static void startup_init()
       dialog_menu_type = dialog_none;
    }
    gtk_tree_selection_unselect_all(ts);
+   gtk_widget_grab_focus(SDG("startup_list"));
    gtk_dialog_set_response_sensitive(GTK_DIALOG(window_startup),
 				     GTK_RESPONSE_OK, FALSE);
 }
