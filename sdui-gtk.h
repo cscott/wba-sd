@@ -267,3 +267,6 @@ gboolean
 on_startup_list_button_press_event     (GtkWidget       *widget,
                                         GdkEventButton  *event,
                                         gpointer         user_data);
+
+void
+on_startup_list_selection_changed(GtkTreeSelection *selection, gpointer data);

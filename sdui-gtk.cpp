@@ -1,6 +1,7 @@
 // SD -- square dance caller's helper.
 //
 //    This file copyright (C) 2005  C. Scott Ananian.
+//    Derived heavily from sdui-win.cpp.
 //
 //    This file is part of "Sd".
 //
@@ -44,9 +45,10 @@ extern "C" {
 
 // GLADE interface definitions
 static GladeXML *sd_xml;
-static GtkWidget *window_startup, *window_main;
+static GtkWidget *window_startup, *window_main, *window_font, *window_text;
 static GdkPixbuf *ico_pixbuf;
 #define SDG(widget_name) (glade_xml_get_widget(sd_xml, (widget_name)))
+#define gtk_update() while (gtk_events_pending ()) gtk_main_iteration ()
 
 // default window size.
 static int window_size_args[4] = {-1, -1, -1, -1};
@@ -75,11 +77,26 @@ struct DisplayType {
    DisplayType *Prev;
 };
 
+
+#define ui_undefined -999
+
 static char szResolveWndTitle [MAX_TEXT_LINE_LENGTH];
+
+#ifdef TAB_FOCUS
+static bool InPopup = false;
+#endif
+static bool WaitingForCommand = false;
+static int nLastOne;
+static uims_reply MenuKind;
+static DisplayType *DisplayRoot = NULL;
+static DisplayType *CurDisplay = NULL;
 
 // This is the last title sent by the main program.  We add stuff to it.
 static gchar main_title[MAX_TEXT_LINE_LENGTH];
 
+// misc. prototypes.
+static void about_open_url(GtkAboutDialog *about,
+			   const gchar *link, gpointer data);
 
 
 static void uims_bell()
@@ -88,7 +105,7 @@ static void uims_bell()
 }
 
 
-static void UpdateStatusBar(gchar *text)
+static void UpdateStatusBar(const gchar *text)
 {
    assert(text);
 
@@ -124,10 +141,265 @@ static void UpdateStatusBar(gchar *text)
 
    (void) SendMessage(hwndStatusBar, SB_SETTEXT, 0, (LPARAM) szGLOBFirstPane);
    (void) SendMessage(hwndStatusBar, SB_SIMPLE, 0, 0);
-   UpdateWindow(hwndStatusBar);
 #endif
+   gtk_update();
 }
-///// 259
+/// 259
+/// 838
+// Size of the square pixel array in the bitmap for one person.
+// The bitmap is exactly 8 of these wide and 4 of them high.
+#define BMP_PERSON_SIZE 36
+// This should be even.
+// was 10
+#define BMP_PERSON_SPACE 0
+/// 845
+/// 1132
+static popup_return do_general_text_popup(Cstring prompt1, Cstring prompt2,
+                                          Cstring seed, char dest[])
+{
+   int result;
+   gtk_label_set_text(GTK_LABEL(SDG("text_line1")), prompt1);
+   gtk_label_set_text(GTK_LABEL(SDG("text_line2")), prompt2);
+   gtk_entry_set_text(GTK_ENTRY(SDG("text_entry")), seed);
+   gtk_widget_show(window_text);
+   result = gtk_dialog_run(GTK_DIALOG(window_text));
+   gtk_widget_hide(window_text);
+   dest[0] = 0;
+   if (result == GTK_RESPONSE_OK) {
+      const gchar *txt = gtk_entry_get_text(GTK_ENTRY(SDG("text_entry")));
+      if (txt && txt[0]) {
+	 strcpy(dest, txt); // XXX UNSAFE!  WATCH BUFFER LENGTH!
+	 return POPUP_ACCEPT_WITH_STRING;
+      }
+      return POPUP_ACCEPT;
+   }
+   return POPUP_DECLINE;
+}
+
+///////////////////////////////////////////////////////////////////////////
+// command-line options.
+static struct {
+    int argc;
+    char **argv;
+    int allocd;
+} fake_args = { 0, NULL, 0 };
+static void stash_away_sd_options(poptContext con,const struct poptOption *opt,
+				  const char *args, void * data) {
+    char *buf;
+    int n;
+    if (fake_args.argc==fake_args.allocd) {
+	if (fake_args.allocd==0)
+	    fake_args.allocd=10; // first allocation
+	else
+	    fake_args.allocd*=2; // re-allocation
+	fake_args.argv = (char**) get_more_mem
+	    (fake_args.argv, fake_args.allocd * sizeof(*(fake_args.argv)));
+    }
+    // okay, stash away this option
+    assert(opt->longName);
+    n = strlen(opt->longName)+2;
+    buf = (char*) get_mem(n);
+    snprintf(buf, n, "-%s", opt->longName);
+    fake_args.argv[fake_args.argc++]=buf;
+    // is there an argument? stash it away too
+    if (args)
+	fake_args.argv[fake_args.argc++]=strdup(args);
+    // okay, done.
+}
+static const struct poptOption tty_options[] = {
+    {"no_line_delete", 0, POPT_ARG_NONE | POPT_ARGFLAG_ONEDASH, NULL, 0,
+     "do not use the \"line delete\" function for screen management (ignored)",
+     NULL},
+    {"no_cursor", 0, POPT_ARG_NONE | POPT_ARGFLAG_ONEDASH, NULL, 0,
+     "do not use screen management functions at all (ignored)", NULL},
+    {"no_console", 0, POPT_ARG_NONE | POPT_ARGFLAG_ONEDASH, NULL, 0,
+     "??? (ignored)", NULL}, // XXX FIXME
+    {"alternative_glyphs_1", 0, POPT_ARG_NONE | POPT_ARGFLAG_ONEDASH, NULL, 0,
+     "??? (ignored)", NULL}, // XXX FIXME
+    {"lines", 0, POPT_ARG_INT | POPT_ARGFLAG_ONEDASH, NULL, 0,
+     "assume this many lines on the screen", "<n>"},
+    {"journal", 0, POPT_ARG_STRING | POPT_ARGFLAG_ONEDASH, NULL, 0,
+     "echo input commands to journal file", "<filename>"},
+    POPT_TABLEEND /* end the list */
+}, gui_options[] = {
+    {"maximize", 0, POPT_ARG_NONE | POPT_ARGFLAG_ONEDASH, &do_maximize, 0,
+     "start with sd main window maximized", NULL},
+    {"window_size", 0, POPT_ARG_STRING | POPT_ARGFLAG_ONEDASH,
+     &window_size_str, 0,
+     "set the initial sd window size", "<width>x<height>[x<left>x<top>]"},
+    POPT_TABLEEND /* end the list */
+}, sd_options[] = {
+    {NULL, 0, POPT_ARG_CALLBACK, (void*)&stash_away_sd_options, 0, NULL, NULL},
+    {"write_list", 0,
+     POPT_ARG_STRING | POPT_ARGFLAG_ONEDASH | POPT_ARGFLAG_OPTIONAL, NULL, 0,
+     "write out list for this level", "<filename>"},
+    {"write_full_list", 0,
+     POPT_ARG_STRING | POPT_ARGFLAG_ONEDASH | POPT_ARGFLAG_OPTIONAL, NULL, 0,
+     "write this list and all lower", "<filename>"},
+    {"abridge", 0,
+     POPT_ARG_STRING | POPT_ARGFLAG_ONEDASH | POPT_ARGFLAG_OPTIONAL, NULL, 0,
+     "do not use calls in this file", "<filename>"},
+    {"sequence", 0,
+     POPT_ARG_STRING | POPT_ARGFLAG_ONEDASH | POPT_ARGFLAG_OPTIONAL, NULL, 0,
+     "base name for sequence output file (def \"sequence\")", "<filename>"},
+    {"db", 0,
+     POPT_ARG_STRING | POPT_ARGFLAG_ONEDASH | POPT_ARGFLAG_OPTIONAL, NULL, 0,
+     "calls database file (def \"sd_calls.dat\")", "<filename>"},
+    {"sequence_num", 0,
+     POPT_ARG_INT | POPT_ARGFLAG_ONEDASH | POPT_ARGFLAG_OPTIONAL,
+     &ui_options.sequence_num_override, 0,
+     "use this initial sequence number", "<n>"},
+    {"session", 0,
+     POPT_ARG_INT | POPT_ARGFLAG_ONEDASH | POPT_ARGFLAG_OPTIONAL,
+     &ui_options.force_session, 0,
+     "use the indicated session number", "<n>"},
+    {"resolve_test", 0,
+     POPT_ARG_INT | POPT_ARGFLAG_ONEDASH | POPT_ARGFLAG_OPTIONAL,
+     &ui_options.resolve_test_minutes, 0,
+     "????", "<minutes>"}, // XXX ???
+    {"print_length", 0,
+     POPT_ARG_INT | POPT_ARGFLAG_ONEDASH | POPT_ARGFLAG_OPTIONAL,
+     &ui_options.max_print_length, 0,
+     "????", "<n>"}, // XXX ???
+    {"delete_abridge", 0, POPT_ARG_NONE | POPT_ARGFLAG_ONEDASH | POPT_ARG_VAL,
+     &glob_abridge_mode, abridge_mode_deleting_abridge,
+     "delete abridgement from existing session", NULL },
+    {"no_intensify", 0, POPT_ARG_NONE | POPT_ARGFLAG_ONEDASH, NULL, 0,
+     "show text in the normal shade instead of extra-bright", NULL },
+    {"reverse_video", 0, POPT_ARG_NONE | POPT_ARGFLAG_ONEDASH, NULL, 0,
+     "(Sd only) display transcript in white-on-black", NULL },
+    {"normal_video", 0, POPT_ARG_NONE | POPT_ARGFLAG_ONEDASH, NULL, 0,
+     "(Sdtty only) display transcript in black-on-white", NULL },
+    {"pastel_color", 0, POPT_ARG_NONE | POPT_ARGFLAG_ONEDASH, NULL, 0,
+     "use pastel colors when not coloring by couple or corner", NULL },
+    {"bold_color", 0, POPT_ARG_NONE | POPT_ARGFLAG_ONEDASH, NULL, 0,
+     "use bold colors when not coloring by couple or corner", NULL },
+    {"no_color", 0, POPT_ARG_NONE | POPT_ARGFLAG_ONEDASH | POPT_ARG_VAL,
+     &ui_options.color_scheme, no_color,
+     "do not display people in color", NULL },
+    {"color_by_couple", 0, POPT_ARG_NONE | POPT_ARGFLAG_ONEDASH | POPT_ARG_VAL,
+     &ui_options.color_scheme, color_by_couple,
+     "display color according to couple number, rgby", NULL },
+    {"color_by_couple_rgyb", 0, POPT_ARG_NONE | POPT_ARGFLAG_ONEDASH | POPT_ARG_VAL,
+     &ui_options.color_scheme, color_by_couple_rgyb,
+     "similar to color_by_couple, but with rgyb", NULL },
+    {"color_by_couple_ygrb", 0, POPT_ARG_NONE | POPT_ARGFLAG_ONEDASH | POPT_ARG_VAL,
+     &ui_options.color_scheme, color_by_couple_ygrb,
+     "similar to color_by_couple, but with ygrb", NULL },
+    {"color_by_corner", 0, POPT_ARG_NONE | POPT_ARGFLAG_ONEDASH | POPT_ARG_VAL,
+     &ui_options.color_scheme, color_by_corner,
+     "similar to color_by_couple, but make corners match", NULL },
+    {"no_sound", 0, POPT_ARG_NONE | POPT_ARGFLAG_ONEDASH, NULL, 0,
+     "do not make any noise when an error occurs", NULL },
+    {"tab_changes_focus", 0, POPT_ARG_NONE | POPT_ARGFLAG_ONEDASH, NULL, 0,
+     "use standard windows action on tab", NULL },
+    {"keep_all_pictures", 0, POPT_ARG_NONE | POPT_ARGFLAG_ONEDASH, NULL, 0,
+     "keep the picture after every call", NULL },
+    {"single_click", 0, POPT_ARG_NONE | POPT_ARGFLAG_ONEDASH, NULL, 0,
+     "(Sd only) act on single mouse clicks on the menu", NULL },
+    {"no_checkers", 0, POPT_ARG_NONE | POPT_ARGFLAG_ONEDASH, NULL, 0,
+     "do not use large \"checkers\" for setup display", NULL },
+    {"no_graphics", 0, POPT_ARG_NONE | POPT_ARGFLAG_ONEDASH, NULL, 0,
+     "do not use special characters for setup display", NULL },
+    {"diagnostic", 0, POPT_ARG_NONE | POPT_ARGFLAG_ONEDASH, NULL, 0,
+     "turn on sd diagnostic mode", NULL },
+    {"singlespace", 0, POPT_ARG_NONE | POPT_ARGFLAG_ONEDASH, NULL, 0,
+     "single space the output file", NULL },
+    {"no_warnings", 0, POPT_ARG_NONE | POPT_ARGFLAG_ONEDASH, NULL, 0,
+     "do not display or print any warning messages", NULL },
+    {"concept_levels", 0, POPT_ARG_NONE | POPT_ARGFLAG_ONEDASH, NULL, 0,
+     "allow concepts from any level", NULL },
+    {"minigrand_getouts", 0, POPT_ARG_NONE | POPT_ARGFLAG_ONEDASH, NULL, 0,
+     "allow \"mini-grand\" (RLG but promenade on 3rd hand) getouts", NULL },
+    {"active_phantoms", 0, POPT_ARG_NONE | POPT_ARGFLAG_ONEDASH, NULL, 0,
+     "use active phantoms for \"assume\" operations", NULL },
+    {"discard_after_error", 0, POPT_ARG_NONE | POPT_ARGFLAG_ONEDASH, NULL, 0,
+     "ciscard pending concepts after error (default)", NULL },
+    {"retain_after_error", 0, POPT_ARG_NONE | POPT_ARGFLAG_ONEDASH, NULL, 0,
+     "retain pending concepts after error", NULL },
+    {"new_style_filename", 0, POPT_ARG_NONE | POPT_ARGFLAG_ONEDASH, NULL, 0,
+     "use long file name, as in \"sequence_MS.txt\"", NULL },
+    {"old_style_filename", 0, POPT_ARG_NONE | POPT_ARGFLAG_ONEDASH, NULL, 0,
+     "use short file name, as in \"sequence.MS\"", NULL },
+    POPT_TABLEEND /* end the list */
+};
+static const struct poptOption all_options[] = {
+    { NULL, 0, POPT_ARG_INCLUDE_TABLE, (void*)&sd_options, 0,
+      "Sd options", NULL },
+    { NULL, 0, POPT_ARG_INCLUDE_TABLE, (void*)&gui_options, 0,
+      "Sd GUI options", NULL },
+    { NULL, 0, POPT_ARG_INCLUDE_TABLE, (void*)&tty_options, 0,
+      "Sdtty options (ignored)", NULL },
+    POPT_TABLEEND /* end the list */
+};
+
+int main(int argc, char **argv) {
+   GtkCellRenderer *renderer;
+   GtkTreeView *startup_list;
+   GtkTreeViewColumn *column;
+   GdkPixbuf *ico_font;
+   // Set the UI options for Sd.
+
+   ui_options.reverse_video = false;
+   ui_options.pastel_color = false;
+
+   // Initialize all the callbacks that sdlib will need.
+   iofull ggg;
+   gg = &ggg;
+
+   // somewhat unconventionally, initialize GNOME and process command-line
+   // options *first*; we'll construct a fake argc/argv of sd-specific
+   // command-line options that we'll pass to sdmain.
+   gnome_program_init(PACKAGE, VERSION, LIBGNOMEUI_MODULE,
+		      argc, argv,
+		      GNOME_PARAM_APP_DATADIR, PACKAGE_DATA_DIR,
+		      GNOME_PARAM_POPT_TABLE, all_options,
+		      NULL);
+   // initialize the interface.
+
+   sd_xml = glade_xml_new("sd.glade", NULL, NULL);
+   window_startup = SDG("dialog_startup");
+   window_main = SDG("app_main");
+   window_text = SDG("dialog_text");
+   window_font = SDG("dialog_font");
+
+   startup_list = GTK_TREE_VIEW(SDG("startup_list"));
+   renderer = gtk_cell_renderer_text_new();
+   column = gtk_tree_view_column_new_with_attributes("Level/Session",renderer,
+						     "text", 1, NULL);
+   gtk_tree_view_append_column(startup_list, column);
+   column = gtk_tree_view_column_new_with_attributes("Commands", renderer,
+						     "text", 0, NULL);
+   gtk_tree_view_append_column(GTK_TREE_VIEW(SDG("main_cmds")), column);
+   g_signal_connect
+      (G_OBJECT(gtk_tree_view_get_selection(startup_list)),
+       "changed", G_CALLBACK(on_startup_list_selection_changed), NULL);
+
+   /* Load the (inlined) sd icon. */
+   ico_pixbuf = gdk_pixbuf_new_from_inline (-1, sdico_inline, FALSE, NULL);
+   if (ico_pixbuf) {
+      gtk_window_set_icon(GTK_WINDOW(window_main), ico_pixbuf);
+      gtk_window_set_icon(GTK_WINDOW(window_startup), ico_pixbuf);
+      gtk_window_set_icon(GTK_WINDOW(window_text), ico_pixbuf);
+      // note that there's still an outstanding ref to ico_pixbuf, but
+      // that's okay, because we've stashed it away in a static variable
+      // for use later.
+   }
+   ico_font = gtk_widget_render_icon(window_font, GTK_STOCK_SELECT_FONT,
+				     (GtkIconSize)-1, "sd");
+   gtk_window_set_icon(GTK_WINDOW(window_font), ico_font);
+   g_object_unref(ico_font);
+   
+   /* connect the signals in the interface */
+   glade_xml_signal_autoconnect(sd_xml);
+   gtk_about_dialog_set_url_hook(about_open_url, NULL, NULL);
+
+   // Run the Sd program.  We'll have parsed the Sd-appropriate command-line
+   // arguments into 'fake_args'.
+
+   return sdmain(fake_args.argc, fake_args.argv);
+}
+/// 1173
 ///// 1362
 bool iofull::help_manual()
 {
@@ -203,7 +475,8 @@ on_help_about_activate(GtkMenuItem *menuitem, gpointer user_data) {
 			 "authors", authors,
 			 NULL);
 }
-void about_open_url(GtkAboutDialog *about, const gchar *link, gpointer data) {
+static void about_open_url(GtkAboutDialog *about,
+			   const gchar *link, gpointer data) {
    GError *error = NULL;
    gboolean result;
    result = gnome_url_show(link, &error);
@@ -220,35 +493,17 @@ void about_open_url(GtkAboutDialog *about, const gchar *link, gpointer data) {
 
 /// 1375
 
+
 // iofull stubs.
-int iofull::do_abort_popup() { assert(0); }
-uims_reply iofull::get_startup_command() { assert(0); }
-void iofull::add_new_line(char the_line[], uint32 drawing_picture) { assert(0); }
-void iofull::reduce_line_count(int n) { assert(0); }
-void iofull::update_resolve_menu(command_kind goal, int cur, int max,
-                                    resolver_display_state state) { assert(0); }
+static void Update_text_display() { assert(0); }
+static void erase_questionable_stuff() { assert(0); }
 void iofull::show_match() { assert(0); }
-uims_reply iofull::get_resolve_command() { assert(0); }
-bool iofull::choose_font() { assert(0); }
-bool iofull::print_this() { assert(0); }
-bool iofull::print_any() { assert(0); }
-popup_return iofull::do_outfile_popup(char dest[]) { assert(0); }
-popup_return iofull::do_header_popup(char dest[]) { assert(0); }
-popup_return iofull::do_getout_popup(char dest[]) { assert(0); }
-void iofull::fatal_error_exit(int code, Cstring s1, Cstring s2) { assert(0); }
-void iofull::serious_error_print(Cstring s1) { assert(0); }
-void iofull::create_menu(call_list_kind cl) { assert(0); }
-int iofull::do_selector_popup() { assert(0); }
-int iofull::do_direction_popup() { assert(0); }
-int iofull::do_circcer_popup() { assert(0); }
-int iofull::do_tagger_popup(int tagger_class) { assert(0); }
-int iofull::yesnoconfirm(char *title, char *line1, char *line2, bool excl, bool info) { assert(0); }
-popup_return iofull::do_comment_popup(char dest[]) { assert(0); }
-uint32 iofull::get_number_fields(int nnumbers, bool forbid_zero) { assert(0); }
-bool iofull::get_call_command(uims_reply *reply_p) { assert(0); }
-void iofull::terminate(int code) { assert(0); }
-void iofull::bad_argument(Cstring s1, Cstring s2, Cstring s3) { assert(0); }
 void iofull::final_initialize() { assert(0); }
+static void do_my_final_shutdown() {
+   // send 'close' to window.
+   g_signal_emit_by_name(GTK_WIDGET(window_main), "GtkWidget::delete-event",
+			 NULL, NULL); // XXX is this correct?
+}
 
 ////////// 1815
 static void setup_level_menu(GtkListStore *startup_list)
@@ -731,13 +986,13 @@ bool iofull::init_step(init_callback_state s, int n)
       if (do_maximize)
 	 gtk_window_maximize ( GTK_WINDOW(window_main) );
 
-#if 0
-      UpdateWindow(hwndMain);
+      gtk_update();
 
       UpdateStatusBar("Reading database");
       break;
 
    case init_database2:
+#if 0
       ShowWindow(hwndProgress, SW_SHOWNORMAL);
       UpdateStatusBar("Creating Menus");
       break;
@@ -759,10 +1014,42 @@ bool iofull::init_step(init_callback_state s, int n)
       ShowWindow(hwndProgress, SW_HIDE);
       UpdateStatusBar("Processing Accelerator Keys");
 #endif
+   default:
+      assert(0);
       break;
    }
    return false;
 }
+/// 2395
+
+/// 2561
+// Process GTK messages
+void EnterMessageLoop()
+{
+   gboolean is_quit = false;
+   user_match.valid = FALSE;
+   erase_matcher_input();
+   WaitingForCommand = true;
+
+   while (WaitingForCommand && !is_quit)
+      is_quit = gtk_main_iteration();
+
+   // The message loop has been broken.  Either we got a message
+   // that requires action (user clicked on a call, as opposed to
+   // WM_PAINT), or gtk_main_quit() has been called.  The former case
+   // is indicated by the message handler turning off WaitingForCommand.
+   // Final exit is indicated by 'is_quit' becoming true while
+   // WaitingForCommand remains true.
+
+   if (is_quit) {
+      // User closed the window.
+#if 0
+      delete GLOBprinter;
+#endif
+      general_final_exit(0);
+   }
+}
+
 
 void iofull::display_help() {}
 
@@ -791,233 +1078,607 @@ void iofull::process_command_line(int *argcp, char ***argvp)
    }
 }
 
+
+
+static void scan_menu(GtkListStore *main_list,
+		      Cstring name, int *nLongest_p,
+		      gint index, enum uims_reply choice_type)
+{
+   GtkTreeIter iter;
+   // THIS FUNCTION should add each name/number/number row to the list,
+   // also keeping track of the longest name it sees an ensuring that the
+   // list is currently 'at least that wide'. (We're going to ignore that
+   // last feature, for the moment.)
 #if 0
-int main2(int argc, char *argv[]) {
-    /* show everything (well, for now) */
-    gtk_widget_show(dialog_startup);
-    gtk_widget_show(about_sd);
-    gtk_widget_show(app_main);
+   SIZE Size;
 
-
-    /* start the event loop */
-    gtk_main();
-
-    return 0;
-}
+   GetTextExtentPoint(hDC, name, lstrlen(name), &Size);
+   if ((Size.cx > *nLongest_p) && (Size.cx > CallsClientRect.right)) {
+      SendMessage(hwndCallMenu, LB_SETHORIZONTALEXTENT, Size.cx, 0L);
+      *nLongest_p = Size.cx;
+   }
 #endif
 
-///////////////////////////////////////////////////////////////////////////
-// command-line options.
-static struct {
-    int argc;
-    char **argv;
-    int allocd;
-} fake_args = { 0, NULL, 0 };
-static void stash_away_sd_options(poptContext con,const struct poptOption *opt,
-				  const char *args, void * data) {
-    char *buf;
-    int n;
-    if (fake_args.argc==fake_args.allocd) {
-	if (fake_args.allocd==0)
-	    fake_args.allocd=10; // first allocation
-	else
-	    fake_args.allocd*=2; // re-allocation
-	fake_args.argv = (char**) get_more_mem
-	    (fake_args.argv, fake_args.allocd * sizeof(*(fake_args.argv)));
-    }
-    // okay, stash away this option
-    assert(opt->longName);
-    n = strlen(opt->longName)+2;
-    buf = (char*) get_mem(n);
-    snprintf(buf, n, "-%s", opt->longName);
-    fake_args.argv[fake_args.argc++]=buf;
-    // is there an argument? stash it away too
-    if (args)
-	fake_args.argv[fake_args.argc++]=strdup(args);
-    // okay, done.
+   gtk_list_store_insert_with_values(main_list, &iter, G_MAXINT,
+				     0, name, 1, index, 2, choice_type, -1);
 }
-static const struct poptOption tty_options[] = {
-    {"no_line_delete", 0, POPT_ARG_NONE | POPT_ARGFLAG_ONEDASH, NULL, 0,
-     "do not use the \"line delete\" function for screen management (ignored)",
-     NULL},
-    {"no_cursor", 0, POPT_ARG_NONE | POPT_ARGFLAG_ONEDASH, NULL, 0,
-     "do not use screen management functions at all (ignored)", NULL},
-    {"no_console", 0, POPT_ARG_NONE | POPT_ARGFLAG_ONEDASH, NULL, 0,
-     "??? (ignored)", NULL}, // XXX FIXME
-    {"alternative_glyphs_1", 0, POPT_ARG_NONE | POPT_ARGFLAG_ONEDASH, NULL, 0,
-     "??? (ignored)", NULL}, // XXX FIXME
-    {"lines", 0, POPT_ARG_INT | POPT_ARGFLAG_ONEDASH, NULL, 0,
-     "assume this many lines on the screen", "<n>"},
-    {"journal", 0, POPT_ARG_STRING | POPT_ARGFLAG_ONEDASH, NULL, 0,
-     "echo input commands to journal file", "<filename>"},
-    POPT_TABLEEND /* end the list */
-}, gui_options[] = {
-    {"maximize", 0, POPT_ARG_NONE | POPT_ARGFLAG_ONEDASH, &do_maximize, 0,
-     "start with sd main window maximized", NULL},
-    {"window_size", 0, POPT_ARG_STRING | POPT_ARGFLAG_ONEDASH,
-     &window_size_str, 0,
-     "set the initial sd window size", "<width>x<height>[x<left>x<top>]"},
-    POPT_TABLEEND /* end the list */
-}, sd_options[] = {
-    {NULL, 0, POPT_ARG_CALLBACK, (void*)&stash_away_sd_options, 0, NULL, NULL},
-    {"write_list", 0,
-     POPT_ARG_STRING | POPT_ARGFLAG_ONEDASH | POPT_ARGFLAG_OPTIONAL, NULL, 0,
-     "write out list for this level", "<filename>"},
-    {"write_full_list", 0,
-     POPT_ARG_STRING | POPT_ARGFLAG_ONEDASH | POPT_ARGFLAG_OPTIONAL, NULL, 0,
-     "write this list and all lower", "<filename>"},
-    {"abridge", 0,
-     POPT_ARG_STRING | POPT_ARGFLAG_ONEDASH | POPT_ARGFLAG_OPTIONAL, NULL, 0,
-     "do not use calls in this file", "<filename>"},
-    {"sequence", 0,
-     POPT_ARG_STRING | POPT_ARGFLAG_ONEDASH | POPT_ARGFLAG_OPTIONAL, NULL, 0,
-     "base name for sequence output file (def \"sequence\")", "<filename>"},
-    {"db", 0,
-     POPT_ARG_STRING | POPT_ARGFLAG_ONEDASH | POPT_ARGFLAG_OPTIONAL, NULL, 0,
-     "calls database file (def \"sd_calls.dat\")", "<filename>"},
-    {"sequence_num", 0,
-     POPT_ARG_INT | POPT_ARGFLAG_ONEDASH | POPT_ARGFLAG_OPTIONAL,
-     &ui_options.sequence_num_override, 0,
-     "use this initial sequence number", "<n>"},
-    {"session", 0,
-     POPT_ARG_INT | POPT_ARGFLAG_ONEDASH | POPT_ARGFLAG_OPTIONAL,
-     &ui_options.force_session, 0,
-     "use the indicated session number", "<n>"},
-    {"resolve_test", 0,
-     POPT_ARG_INT | POPT_ARGFLAG_ONEDASH | POPT_ARGFLAG_OPTIONAL,
-     &ui_options.resolve_test_minutes, 0,
-     "????", "<minutes>"}, // XXX ???
-    {"print_length", 0,
-     POPT_ARG_INT | POPT_ARGFLAG_ONEDASH | POPT_ARGFLAG_OPTIONAL,
-     &ui_options.max_print_length, 0,
-     "????", "<n>"}, // XXX ???
-    {"delete_abridge", 0, POPT_ARG_NONE | POPT_ARGFLAG_ONEDASH | POPT_ARG_VAL,
-     &glob_abridge_mode, abridge_mode_deleting_abridge,
-     "delete abridgement from existing session", NULL },
-    {"no_intensify", 0, POPT_ARG_NONE | POPT_ARGFLAG_ONEDASH, NULL, 0,
-     "show text in the normal shade instead of extra-bright", NULL },
-    {"reverse_video", 0, POPT_ARG_NONE | POPT_ARGFLAG_ONEDASH, NULL, 0,
-     "(Sd only) display transcript in white-on-black", NULL },
-    {"normal_video", 0, POPT_ARG_NONE | POPT_ARGFLAG_ONEDASH, NULL, 0,
-     "(Sdtty only) display transcript in black-on-white", NULL },
-    {"pastel_color", 0, POPT_ARG_NONE | POPT_ARGFLAG_ONEDASH, NULL, 0,
-     "use pastel colors when not coloring by couple or corner", NULL },
-    {"bold_color", 0, POPT_ARG_NONE | POPT_ARGFLAG_ONEDASH, NULL, 0,
-     "use bold colors when not coloring by couple or corner", NULL },
-    {"no_color", 0, POPT_ARG_NONE | POPT_ARGFLAG_ONEDASH | POPT_ARG_VAL,
-     &ui_options.color_scheme, no_color,
-     "do not display people in color", NULL },
-    {"color_by_couple", 0, POPT_ARG_NONE | POPT_ARGFLAG_ONEDASH | POPT_ARG_VAL,
-     &ui_options.color_scheme, color_by_couple,
-     "display color according to couple number, rgby", NULL },
-    {"color_by_couple_rgyb", 0, POPT_ARG_NONE | POPT_ARGFLAG_ONEDASH | POPT_ARG_VAL,
-     &ui_options.color_scheme, color_by_couple_rgyb,
-     "similar to color_by_couple, but with rgyb", NULL },
-    {"color_by_couple_ygrb", 0, POPT_ARG_NONE | POPT_ARGFLAG_ONEDASH | POPT_ARG_VAL,
-     &ui_options.color_scheme, color_by_couple_ygrb,
-     "similar to color_by_couple, but with ygrb", NULL },
-    {"color_by_corner", 0, POPT_ARG_NONE | POPT_ARGFLAG_ONEDASH | POPT_ARG_VAL,
-     &ui_options.color_scheme, color_by_corner,
-     "similar to color_by_couple, but make corners match", NULL },
-    {"no_sound", 0, POPT_ARG_NONE | POPT_ARGFLAG_ONEDASH, NULL, 0,
-     "do not make any noise when an error occurs", NULL },
-    {"tab_changes_focus", 0, POPT_ARG_NONE | POPT_ARGFLAG_ONEDASH, NULL, 0,
-     "use standard windows action on tab", NULL },
-    {"keep_all_pictures", 0, POPT_ARG_NONE | POPT_ARGFLAG_ONEDASH, NULL, 0,
-     "keep the picture after every call", NULL },
-    {"single_click", 0, POPT_ARG_NONE | POPT_ARGFLAG_ONEDASH, NULL, 0,
-     "(Sd only) act on single mouse clicks on the menu", NULL },
-    {"no_checkers", 0, POPT_ARG_NONE | POPT_ARGFLAG_ONEDASH, NULL, 0,
-     "do not use large \"checkers\" for setup display", NULL },
-    {"no_graphics", 0, POPT_ARG_NONE | POPT_ARGFLAG_ONEDASH, NULL, 0,
-     "do not use special characters for setup display", NULL },
-    {"diagnostic", 0, POPT_ARG_NONE | POPT_ARGFLAG_ONEDASH, NULL, 0,
-     "turn on sd diagnostic mode", NULL },
-    {"singlespace", 0, POPT_ARG_NONE | POPT_ARGFLAG_ONEDASH, NULL, 0,
-     "single space the output file", NULL },
-    {"no_warnings", 0, POPT_ARG_NONE | POPT_ARGFLAG_ONEDASH, NULL, 0,
-     "do not display or print any warning messages", NULL },
-    {"concept_levels", 0, POPT_ARG_NONE | POPT_ARGFLAG_ONEDASH, NULL, 0,
-     "allow concepts from any level", NULL },
-    {"minigrand_getouts", 0, POPT_ARG_NONE | POPT_ARGFLAG_ONEDASH, NULL, 0,
-     "allow \"mini-grand\" (RLG but promenade on 3rd hand) getouts", NULL },
-    {"active_phantoms", 0, POPT_ARG_NONE | POPT_ARGFLAG_ONEDASH, NULL, 0,
-     "use active phantoms for \"assume\" operations", NULL },
-    {"discard_after_error", 0, POPT_ARG_NONE | POPT_ARGFLAG_ONEDASH, NULL, 0,
-     "ciscard pending concepts after error (default)", NULL },
-    {"retain_after_error", 0, POPT_ARG_NONE | POPT_ARGFLAG_ONEDASH, NULL, 0,
-     "retain pending concepts after error", NULL },
-    {"new_style_filename", 0, POPT_ARG_NONE | POPT_ARGFLAG_ONEDASH, NULL, 0,
-     "use long file name, as in \"sequence_MS.txt\"", NULL },
-    {"old_style_filename", 0, POPT_ARG_NONE | POPT_ARGFLAG_ONEDASH, NULL, 0,
-     "use short file name, as in \"sequence.MS\"", NULL },
-    POPT_TABLEEND /* end the list */
-};
-static const struct poptOption all_options[] = {
-    { NULL, 0, POPT_ARG_INCLUDE_TABLE, (void*)&sd_options, 0,
-      "Sd options", NULL },
-    { NULL, 0, POPT_ARG_INCLUDE_TABLE, (void*)&gui_options, 0,
-      "Sd GUI options", NULL },
-    { NULL, 0, POPT_ARG_INCLUDE_TABLE, (void*)&tty_options, 0,
-      "Sdtty options (ignored)", NULL },
-    POPT_TABLEEND /* end the list */
-};
 
-int main(int argc, char **argv) {
-   GtkCellRenderer *renderer;
-   GtkTreeView *startup_list;
-   GtkTreeViewColumn *column;
-   // Set the UI options for Sd.
 
-   ui_options.reverse_video = false;
-   ui_options.pastel_color = false;
 
-   // Initialize all the callbacks that sdlib will need.
-   iofull ggg;
-   gg = &ggg;
+void ShowListBox(int nWhichOne)
+{
+   GtkTreeView *main_cmds = GTK_TREE_VIEW(SDG("main_cmds"));
+   GtkListStore *main_list;
+   if (nWhichOne != nLastOne) {
 
-   // somewhat unconventionally, initialize GNOME and process command-line
-   // options *first*; we'll construct a fake argc/argv of sd-specific
-   // command-line options that we'll pass to sdmain.
-   gnome_program_init(PACKAGE, VERSION, LIBGNOMEUI_MODULE,
-		      argc, argv,
-		      GNOME_PARAM_APP_DATADIR, PACKAGE_DATA_DIR,
-		      GNOME_PARAM_POPT_TABLE, all_options,
-		      NULL);
-   // initialize the interface.
+      nLastOne = nWhichOne;
+      menu_moved = false;
 
-   sd_xml = glade_xml_new("sd.glade", NULL, NULL);
-   window_startup = SDG("dialog_startup");
-   window_main = SDG("app_main");
+      main_list = gtk_list_store_new(3, G_TYPE_STRING, G_TYPE_INT, G_TYPE_INT);
+      gtk_list_store_clear(main_list);
 
-   startup_list = GTK_TREE_VIEW(SDG("startup_list"));
-   renderer = gtk_cell_renderer_text_new();
-   column = gtk_tree_view_column_new_with_attributes("Level/Session",renderer,
-						     "text", 1, NULL);
-   gtk_tree_view_append_column(startup_list, column);
-   column = gtk_tree_view_column_new_with_attributes("Commands", renderer,
-						     "text", 0, NULL);
-   gtk_tree_view_append_column(GTK_TREE_VIEW(SDG("main_cmds")), column);
-   g_signal_connect
-      (G_OBJECT(gtk_tree_view_get_selection(startup_list)),
-       "changed", G_CALLBACK(on_startup_list_selection_changed), NULL);
+      int nLongest = 0;
 
-   /* Load the (inlined) sd icon. */
-   ico_pixbuf = gdk_pixbuf_new_from_inline (-1, sdico_inline, FALSE, NULL);
-   if (ico_pixbuf) {
-      gtk_window_set_icon(GTK_WINDOW(window_main), ico_pixbuf);
-      gtk_window_set_icon(GTK_WINDOW(window_startup), ico_pixbuf);
-      // note that there's still an outstanding ref to ico_pixbuf, but
-      // that's okay, because we've stashed it away in a static variable
-      // for use later.
+      if (nLastOne == match_number) {
+         UpdateStatusBar("<number>");
+
+         for (int iu=0 ; iu<NUM_CARDINALS; iu++)
+            scan_menu(main_list, cardinals[iu], &nLongest, iu, (uims_reply) -1);
+      }
+      else if (nLastOne == match_circcer) {
+         UpdateStatusBar("<circulate replacement>");
+
+         for (unsigned int iu=0 ; iu<number_of_circcers ; iu++)
+            scan_menu(main_list, circcer_calls[iu]->menu_name, &nLongest, iu, (uims_reply) -1);
+      }
+      else if (nLastOne >= match_taggers &&
+               nLastOne < match_taggers+NUM_TAGGER_CLASSES) {
+         int tagclass = nLastOne - match_taggers;
+
+         UpdateStatusBar("<tagging call>");
+
+         for (unsigned int iu=0 ; iu<number_of_taggers[tagclass] ; iu++)
+            scan_menu(main_list, tagger_calls[tagclass][iu]->menu_name, &nLongest, iu, (uims_reply) -1);
+      }
+      else if (nLastOne == match_startup_commands) {
+         UpdateStatusBar("<startup>");
+
+         for (int i=0 ; i<num_startup_commands ; i++)
+            scan_menu(main_list, startup_commands[i],
+                      &nLongest, i, ui_start_select);
+      }
+      else if (nLastOne == match_resolve_commands) {
+         for (int i=0 ; i<number_of_resolve_commands ; i++)
+            scan_menu(main_list, resolve_command_strings[i],
+                      &nLongest, i, ui_resolve_select);
+      }
+      else if (nLastOne == match_directions) {
+         UpdateStatusBar("<direction>");
+
+         for (int i=0 ; i<last_direction_kind ; i++)
+            scan_menu(main_list, direction_names[i+1],
+                      &nLongest, i, ui_special_concept);
+      }
+      else if (nLastOne == match_selectors) {
+         UpdateStatusBar("<selector>");
+
+         // Menu is shorter than it appears, because we are skipping first item.
+         for (int i=0 ; i<selector_INVISIBLE_START-1 ; i++)
+            scan_menu(main_list, selector_menu_list[i],
+                      &nLongest, i, ui_special_concept);
+      }
+      else {
+         int i;
+
+         UpdateStatusBar(menu_names[nLastOne]);
+
+         for (i=0; i<number_of_calls[nLastOne]; i++)
+            scan_menu(main_list, main_call_lists[nLastOne][i]->menu_name,
+                      &nLongest, i, ui_call_select);
+
+         short int *item;
+         int menu_length;
+
+         if (allowing_all_concepts) {
+            item = concept_list;
+            menu_length = concept_list_length;
+         }
+         else {
+            item = level_concept_list;
+            menu_length = level_concept_list_length;
+         }
+
+         for (i=0 ; i<menu_length ; i++)
+            scan_menu(main_list, concept_descriptor_table[item[i]].menu_name,
+                      &nLongest, item[i], ui_concept_select);
+
+         for (i=0 ;  ; i++) {
+            Cstring name = command_menu[i].command_name;
+            if (!name) break;
+            scan_menu(main_list, name, &nLongest, i, ui_command_select);
+         }
+      }
+
+      
+      gtk_tree_selection_unselect_all(gtk_tree_view_get_selection(main_cmds));
+      gtk_tree_view_set_model(main_cmds, GTK_TREE_MODEL(main_list));
    }
-   
-   /* connect the signals in the interface */
-   glade_xml_signal_autoconnect(sd_xml);
-   gtk_about_dialog_set_url_hook(about_open_url, NULL, NULL);
 
-   // Run the Sd program.  We'll have parsed the Sd-appropriate command-line
-   // arguments into 'fake_args'.
-
-   return sdmain(fake_args.argc, fake_args.argv);
+#ifdef TAB_FOCUS
+   ButtonFocusIndex = 0;
+#endif
+   gtk_widget_grab_focus(SDG("entry_cmd"));
 }
+
+
+
+
+void iofull::create_menu(call_list_kind cl) {}
+
+
+uims_reply iofull::get_startup_command()
+{
+   nLastOne = ui_undefined;
+   MenuKind = ui_start_select;
+   ShowListBox(match_startup_commands);
+
+   EnterMessageLoop();
+
+   uims_menu_index = user_match.match.index;
+
+   if (uims_menu_index < 0)
+      /* Special encoding from a function key. */
+      uims_menu_index = -1-uims_menu_index;
+   else if (user_match.match.kind == ui_command_select) {
+      /* Translate the command. */
+      uims_menu_index = (int) command_command_values[uims_menu_index];
+   }
+   else if (user_match.match.kind == ui_start_select) {
+      /* Translate the command. */
+      uims_menu_index = (int) startup_command_values[uims_menu_index];
+   }
+
+   return user_match.match.kind;
+}
+
+
+bool iofull::get_call_command(uims_reply *reply_p)
+{
+   uims_reply my_reply;
+   bool my_retval;
+ startover:
+   if (allowing_modifications)
+      parse_state.call_list_to_use = call_list_any;
+
+   SetTitle();
+   nLastOne = ui_undefined;    /* Make sure we get a new menu,
+                                  in case concept levels were toggled. */
+   MenuKind = ui_call_select;
+   ShowListBox(parse_state.call_list_to_use);
+   my_retval = false;
+   EnterMessageLoop();
+
+   my_reply = user_match.match.kind;
+   uims_menu_index = user_match.match.index;
+
+   if (uims_menu_index < 0)
+      /* Special encoding from a function key. */
+      uims_menu_index = -1-uims_menu_index;
+   else if (my_reply == ui_command_select) {
+      /* Translate the command. */
+      uims_menu_index = (int) command_command_values[uims_menu_index];
+   }
+   else if (my_reply == ui_special_concept) {
+   }
+   else {
+      // Reject off-level concept accelerator key presses.
+      if (!allowing_all_concepts && my_reply == ui_concept_select &&
+          user_match.match.concept_ptr->level > higher_acceptable_level[calling_level])
+         goto startover;
+
+      call_conc_option_state save_stuff = user_match.match.call_conc_options;
+      there_is_a_call = false;
+      my_retval = deposit_call_tree(&user_match.match, (parse_block *) 0, 2);
+      user_match.match.call_conc_options = save_stuff;
+      if (there_is_a_call) {
+         parse_state.topcallflags1 = the_topcallflags;
+         my_reply = ui_call_select;
+      }
+   }
+
+   *reply_p = my_reply;
+   return my_retval;
+}
+
+
+uims_reply iofull::get_resolve_command()
+{
+   UpdateStatusBar(szResolveWndTitle);
+
+   nLastOne = ui_undefined;
+   MenuKind = ui_resolve_select;
+   ShowListBox(match_resolve_commands);
+#if 0
+   my_retval = false;
+#endif
+   EnterMessageLoop();
+
+   if (user_match.match.index < 0)
+      uims_menu_index = -1-user_match.match.index;   // Special encoding from a function key.
+   else
+      uims_menu_index = (int) resolve_command_values[user_match.match.index];
+
+   return user_match.match.kind;
+}
+
+
+
+popup_return iofull::do_comment_popup(char dest[])
+{
+   if (do_general_text_popup("Enter comment:", "", "", dest) == POPUP_ACCEPT_WITH_STRING)
+      return POPUP_ACCEPT_WITH_STRING;
+   else
+      return POPUP_DECLINE;
+}
+
+
+popup_return iofull::do_outfile_popup(char dest[])
+{
+   char buffer[MAX_TEXT_LINE_LENGTH];
+   snprintf(buffer, sizeof(buffer),
+	   "Current sequence output file is \"%s\".", outfile_string);
+   return do_general_text_popup(buffer,
+                                "Enter new name (or '+' to base it on today's date):",
+                                outfile_string,
+                                dest);
+}
+
+
+popup_return iofull::do_header_popup(char dest[])
+{
+   char myPrompt[MAX_TEXT_LINE_LENGTH];
+
+   if (header_comment[0])
+      snprintf(myPrompt, sizeof(myPrompt),
+	       "Current title is \"%s\".", header_comment);
+   else
+      myPrompt[0] = 0;
+
+   return do_general_text_popup(myPrompt, "Enter new title:", "", dest);
+}
+
+
+popup_return iofull::do_getout_popup (char dest[])
+{
+   char buffer[MAX_TEXT_LINE_LENGTH+MAX_FILENAME_LENGTH];
+
+   if (header_comment[0]) {
+      snprintf(buffer, sizeof(buffer),
+	       "Session title is \"%s\".", header_comment);
+      return
+         do_general_text_popup(buffer,
+                               "You can give an additional comment for just this sequence:",
+                               "",
+                               dest);
+   }
+   else {
+      snprintf(buffer, sizeof(buffer),
+	       "Output file is \"%s\".", outfile_string);
+      return do_general_text_popup(buffer, "Sequence comment:", "", dest);
+   }
+}
+
+int iofull::yesnoconfirm(char *title, char *line1, char *line2, bool excl, bool info)
+{
+   GtkWidget * dialog;
+   GtkMessageType m_type;
+   int result;
+
+   m_type = (excl) ? GTK_MESSAGE_WARNING : (info) ? GTK_MESSAGE_INFO :
+      GTK_MESSAGE_QUESTION;
+
+   dialog = gtk_message_dialog_new
+      (GTK_WINDOW(window_main), GTK_DIALOG_DESTROY_WITH_PARENT,
+       m_type, GTK_BUTTONS_YES_NO, "%s", line2);
+   if (line1 && line1[0])
+      gtk_message_dialog_format_secondary_text
+	 (GTK_MESSAGE_DIALOG(dialog), "%s", line1);
+   gtk_window_set_title(GTK_WINDOW(dialog), title);
+   
+   result = gtk_dialog_run (GTK_DIALOG (dialog));
+   gtk_widget_destroy (dialog);
+   if (result == GTK_RESPONSE_YES)
+      return POPUP_ACCEPT;
+   else
+      return POPUP_DECLINE;
+}
+
+int iofull::do_abort_popup()
+{
+   return yesnoconfirm("Confirmation", (char *) 0,
+                       "Do you really want to abort this sequence?", true, false);
+}
+
+
+static bool do_popup(int nWhichOne)
+{
+   uims_reply SavedMenuKind = MenuKind;
+   nLastOne = ui_undefined;
+   MenuKind = ui_call_select;
+#ifdef TAB_FOCUS
+   InPopup = true;
+   ButtonFocusHigh = 3;
+   ButtonFocusIndex = 0;
+   PositionAcceptButtons();
+#endif
+   gtk_widget_show(SDG("main_cancel"));
+   ShowListBox(nWhichOne);
+   EnterMessageLoop();
+#ifdef TAB_FOCUS
+   InPopup = false;
+   ButtonFocusHigh = 2;
+   ButtonFocusIndex = 0;
+   PositionAcceptButtons();
+#endif
+   gtk_widget_hide(SDG("main_cancel"));
+   MenuKind = SavedMenuKind;
+   // A value of -1 means that the user hit the "cancel" button.
+   return (user_match.match.index >= 0);
+}
+
+
+int iofull::do_selector_popup()
+{
+   int retval = 0;
+   match_result saved_match = user_match;
+
+   // We skip the zeroth selector, which is selector_uninitialized.
+   if (do_popup((int) match_selectors)) retval = user_match.match.index+1;
+   user_match = saved_match;
+   return retval;
+}
+
+
+int iofull::do_direction_popup()
+{
+   int retval = 0;
+   match_result saved_match = user_match;
+
+   // We skip the zeroth direction, which is direction_uninitialized.
+   if (do_popup((int) match_directions)) retval = user_match.match.index+1;
+   user_match = saved_match;
+   return retval;
+}
+
+
+
+int iofull::do_circcer_popup()
+{
+   uint32 retval = 0;
+
+   if (interactivity == interactivity_verify) {
+      retval = verify_options.circcer;
+      if (retval == 0) retval = 1;
+   }
+   else if (!user_match.valid || (user_match.match.call_conc_options.circcer == 0)) {
+      match_result saved_match = user_match;
+      if (do_popup((int) match_circcer))
+         retval = user_match.match.call_conc_options.circcer;
+      user_match = saved_match;
+   }
+   else {
+      retval = user_match.match.call_conc_options.circcer;
+      user_match.match.call_conc_options.circcer = 0;
+   }
+
+   return retval;
+}
+
+
+
+int iofull::do_tagger_popup(int tagger_class)
+{
+   match_result saved_match = user_match;
+   saved_match.match.call_conc_options.tagger = 0;
+
+   if (do_popup(((int) match_taggers) + tagger_class))
+      saved_match.match.call_conc_options.tagger = user_match.match.call_conc_options.tagger;
+   user_match = saved_match;
+
+   int retval = user_match.match.call_conc_options.tagger;
+   user_match.match.call_conc_options.tagger = 0;
+   return retval;
+}
+
+
+uint32 iofull::get_number_fields(int nnumbers, bool forbid_zero)
+{
+   int i;
+   uint32 number_fields = user_match.match.call_conc_options.number_fields;
+   int howmanynumbers = user_match.match.call_conc_options.howmanynumbers;
+   uint32 number_list = 0;
+
+   for (i=0 ; i<nnumbers ; i++) {
+      uint32 this_num = 99;
+
+      if (!user_match.valid || (howmanynumbers <= 0)) {
+         match_result saved_match = user_match;
+         if (do_popup((int) match_number))
+            this_num = user_match.match.index;
+         user_match = saved_match;
+      }
+      else {
+         this_num = number_fields & 0xF;
+         number_fields >>= 4;
+         howmanynumbers--;
+      }
+
+      if (forbid_zero && this_num == 0) return ~0UL;
+      if (this_num > 15) return ~0UL;    /* User gave bad answer. */
+      number_list |= (this_num << (i*4));
+   }
+
+   return number_list;
+}
+
+
+void iofull::add_new_line(char the_line[], uint32 drawing_picture)
+{
+   erase_questionable_stuff();
+   strncpy(CurDisplay->Line, the_line, DISPLAY_LINE_LENGTH-1);
+   CurDisplay->Line[DISPLAY_LINE_LENGTH-1] = 0;
+   CurDisplay->in_picture = drawing_picture;
+
+   if ((CurDisplay->in_picture & 1) && ui_options.no_graphics == 0) {
+      if ((CurDisplay->in_picture & 2)) {
+         CurDisplay->Height = BMP_PERSON_SIZE+BMP_PERSON_SPACE;
+         CurDisplay->DeltaToNext = (BMP_PERSON_SIZE+BMP_PERSON_SPACE)/2;
+      }
+      else {
+         if (!CurDisplay->Line[0])
+            CurDisplay->Height = 0;
+         else
+            CurDisplay->Height = BMP_PERSON_SIZE+BMP_PERSON_SPACE;
+
+         CurDisplay->DeltaToNext = CurDisplay->Height;
+      }
+   }
+   else {
+#if 0
+      CurDisplay->Height = TranscriptTextHeight;
+      CurDisplay->DeltaToNext = TranscriptTextHeight;
+#else
+      assert(0);
+#endif
+   }
+
+   if (!CurDisplay->Next) {
+      CurDisplay->Next = (DisplayType *) get_mem(sizeof(DisplayType));
+      CurDisplay->Next->Prev = CurDisplay;
+      CurDisplay = CurDisplay->Next;
+      CurDisplay->Next = NULL;
+   }
+   else
+      CurDisplay = CurDisplay->Next;
+
+   CurDisplay->Line[0] = -1;
+
+   Update_text_display();
+}
+
+
+
+void iofull::reduce_line_count(int n)
+{
+   CurDisplay = DisplayRoot;
+   while (CurDisplay->Line[0] != -1 && n--) {
+      CurDisplay = CurDisplay->Next;
+   }
+
+   CurDisplay->Line[0] = -1;
+
+   Update_text_display();
+}
+
+
+void iofull::update_resolve_menu(command_kind goal, int cur, int max,
+                                 resolver_display_state state)
+{
+   create_resolve_menu_title(goal, cur, max, state, szResolveWndTitle);
+   UpdateStatusBar(szResolveWndTitle);
+   // Put it in the transcript area also, where it's easy to see.
+   gg->add_new_line(szResolveWndTitle, 0);
+}
+
+
+bool iofull::choose_font()
+{
+#if 0
+   GLOBprinter->choose_font();
+#else
+   assert(0); // unimplemented
+#endif
+   return true;
+}
+
+bool iofull::print_this()
+{
+#if 0
+   GLOBprinter->print_this(outfile_string, szMainTitle, false);
+#else
+   assert(0); // unimplemented
+#endif
+   return true;
+}
+
+bool iofull::print_any()
+{
+#if 0
+   GLOBprinter->print_any(szMainTitle, false);
+#else
+   assert(0); // unimplemented
+#endif
+   return true;
+}
+
+
+void iofull::bad_argument(Cstring s1, Cstring s2, Cstring s3)
+{
+   // Argument s3 isn't important.  It only arises when the level can't
+   // be parsed, and it consists of a list of all the available levels.
+   // In Sd, they were all on the menu.
+
+   gg->fatal_error_exit(1, s1, s2);
+}
+
+
+void iofull::fatal_error_exit(int code, Cstring s1, Cstring s2)
+{
+   char msg[200];
+   if (s2 && s2[0]) {
+      snprintf(msg, sizeof(msg), "%s: %s", s1, s2);
+      s1 = msg;   // Yeah, we can do that.  Yeah, it's sleazy.
+   }
+
+   gg->serious_error_print(s1);
+   session_index = 0;  // Prevent attempts to update session file.
+   general_final_exit(code);
+}
+
+
+void iofull::serious_error_print(Cstring s1)
+{
+   GtkWidget * dialog = gtk_message_dialog_new
+      (GTK_WINDOW(window_main), GTK_DIALOG_DESTROY_WITH_PARENT,
+       GTK_MESSAGE_ERROR, GTK_BUTTONS_CLOSE,
+       "Error: %s", s1);
+   gtk_dialog_run (GTK_DIALOG (dialog));
+   gtk_widget_destroy (dialog);
+}
+
+
+void iofull::terminate(int code)
+{
+   if (window_main) {
+      // Check whether we should write out the transcript file.
+      if (code == 0 && wrote_a_sequence) {
+         if (yesnoconfirm("Confirmation", (char *) 0,
+                          "Do you want to print the file?",
+                          false, true) == POPUP_ACCEPT)
+#if 0
+            GLOBprinter->print_this(outfile_string, szMainTitle, false);
+#else
+	 assert(0); /* unimplemented */
+#endif
+      }
+
+      do_my_final_shutdown();
+   }
+
+   if (ico_pixbuf)
+      g_object_unref(ico_pixbuf);
+   // XXX free the bitmap?
+
+   exit(code);
+}
+/// 3210
