@@ -1026,6 +1026,24 @@ MENU(on_help_faq_activate, ID_HELP_FAQ);
 /// 1578
 
 ////////// 1815
+
+gboolean
+on_app_main_delete_event(GtkWidget *widget, GdkEvent *event,
+			 gpointer user_data) {
+      // We get here if the user presses alt-F4 and we haven't bound it to anything,
+      // or if the user selects "exit" from the "file" menu.
+
+      if (MenuKind != ui_start_select && gg->do_abort_popup() != POPUP_ACCEPT)
+         return TRUE;  // Queried user; user said no; so we don't shut down.
+
+      // Close journal and session files; call general_final_exit,
+      // which sends WM_USER+2 and shuts us down for real.
+
+      general_final_exit(0);
+
+      return FALSE; // never actually reached.
+}
+
 static void setup_level_menu(GtkListStore *startup_list)
 {
    GtkTreeIter iter;
@@ -2317,7 +2335,6 @@ void iofull::serious_error_print(Cstring s1)
 
 void iofull::terminate(int code)
 {
-   GdkEvent *event;
    if (window_main) {
       // Check whether we should write out the transcript file.
       if (code == 0 && wrote_a_sequence) {
@@ -2331,14 +2348,9 @@ void iofull::terminate(int code)
 #endif
       }
 
-      // send delete event to window; borrowed from send_delete_event
-      // in gtkplug.c
-      event = gdk_event_new (GDK_DELETE);
-      event->any.window = window_main->window;
-      event->any.send_event = TRUE;
-      if (GTK_WIDGET_REALIZED(window_main))//perhaps cancel from startup dialog
-	 gtk_widget_event (window_main, event);
-      gdk_event_free (event);
+      // this is for real
+      gtk_widget_destroy(window_main);
+      window_main=NULL;
    }
 
    if (ico_pixbuf)

@@ -809,6 +809,7 @@
   <property name="type_hint">GDK_WINDOW_TYPE_HINT_NORMAL</property>
   <property name="gravity">GDK_GRAVITY_NORTH_WEST</property>
   <property name="enable_layout_config">True</property>
+  <signal name="delete_event" handler="on_app_main_delete_event" last_modification_time="Wed, 23 Mar 2005 18:07:35 GMT"/>
 
   <child internal-child="dock">
     <widget class="BonoboDock" id="bonobodock1">

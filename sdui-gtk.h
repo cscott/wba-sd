@@ -283,3 +283,8 @@ on_main_accept_clicked                 (GtkButton       *button,
 void
 on_main_cancel_clicked                 (GtkButton       *button,
                                         gpointer         user_data);
+
+gboolean
+on_app_main_delete_event               (GtkWidget       *widget,
+                                        GdkEvent        *event,
+                                        gpointer         user_data);
