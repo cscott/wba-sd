@@ -3,5 +3,6 @@ sdtty
 deploy
 mkcalls
 sd_calls.dat
+sd_calls.*cache
 sdui-ico.h
 sdui-bmp.h
