@@ -105,7 +105,7 @@ sd_calls.dat: sd_calls.txt mkcalls
 .cpp.o:
 	$(CC) $(CFLAGS) -c $<
 
-sdui-gtk.o: sdui-gtk.cpp sdui-ico.h
+sdui-gtk.o: sdui-gtk.cpp sdui-gtk.h sdui-ico.h
 	$(CC) $(CFLAGS) `pkg-config --cflags libglade-2.0 libgnomeui-2.0` -c $<
 sdui-ttu.o: sdui-ttu.cpp
 	$(CC) $(CFLAGS) $(TTY_FLAGS) -c $<

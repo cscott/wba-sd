@@ -244,13 +244,21 @@ on_any_qtag_activate                   (GtkMenuItem     *menuitem,
                                         gpointer         user_data);
 
 void
-gtk_widget_show                        (GtkMenuItem     *menuitem,
-                                        gpointer         user_data);
-
-void
 on_help_manual_activate                (GtkMenuItem     *menuitem,
                                         gpointer         user_data);
 
 void
 on_help_faq_activate                   (GtkMenuItem     *menuitem,
+                                        gpointer         user_data);
+
+void
+on_help_about_activate                 (GtkMenuItem     *menuitem,
+                                        gpointer         user_data);
+
+void
+on_abridge_changed                     (GtkButton        *button,
+                                        gpointer         user_data);
+
+void
+on_calldb_changed                      (GtkButton       *button,
                                         gpointer         user_data);

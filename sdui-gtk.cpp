@@ -44,7 +44,9 @@ extern "C" {
 
 // GLADE interface definitions
 static GladeXML *sd_xml;
-static GtkWidget *window_startup, *window_about, *window_main;
+static GtkWidget *window_startup, *window_main;
+static GdkPixbuf *ico_pixbuf;
+
 // default window size.
 static int window_size_args[4] = {-1, -1, -1, -1};
 // Under Sdtty, if you type something ambiguous and press ENTER, it
@@ -173,6 +175,50 @@ on_help_faq_activate(GtkMenuItem *menuitem, gpointer user_data) {
    gg->help_faq();
 }
 
+void
+on_help_about_activate(GtkMenuItem *menuitem, gpointer user_data) {
+   static const gchar *authors[] = {
+      "William B. Ackerman", "Stephen Gildea", "Alan Snyder",
+      "Robert E. Cays", "Charles Petzold",
+      "Chris \"Fen\" Tamanaha",
+      "C. Scott Ananian", NULL };
+   static const gchar *copyright =
+      "Copyright (c) 1990-2005 William B. Ackerman and Stephen Gildea\n"
+      "Copyright (c) 1992-1993 Alan Snyder\n"
+      "Copyright (c) 1995 Robert E. Cays\n"
+      "Copyright (c) 1996 Charles Petzold\n"
+      "Copyright (c) 2001-2002 Chris \"Fen\" Tamanaha\n"
+      "Copyright (c) 2005 C. Scott Ananian\n"
+      "\n"
+      "SD comes with ABSOLUTELY NO WARRANTY.\n"
+      "This is free software, and you are welcome to redistribute it\n"
+      "under certain conditions.  For details see the license.";
+   gtk_show_about_dialog(GTK_WINDOW(window_main),
+			 "name", PACKAGE,
+			 "version", VERSION,
+			 "logo", ico_pixbuf,
+			 "copyright", copyright,
+			 "comments", "Sd: Square Dance Caller's Helper.",
+			 "license", "GPL",
+			 "website", "http://www.lynette.org/sd",
+			 "authors", authors,
+			 NULL);
+}
+void about_open_url(GtkAboutDialog *about, const gchar *link, gpointer data) {
+   GError *error = NULL;
+   gboolean result;
+   result = gnome_url_show(link, &error);
+   if (error && !result) {
+      GtkWidget * dialog = gtk_message_dialog_new
+	 (GTK_WINDOW(window_main), GTK_DIALOG_DESTROY_WITH_PARENT,
+	  GTK_MESSAGE_ERROR, GTK_BUTTONS_CLOSE,
+	  "Can't open %s: %s", link, error->message);
+      g_signal_connect_swapped(dialog, "response",
+			       G_CALLBACK(gtk_widget_destroy), dialog);
+      gtk_widget_show_all(dialog);
+   }
+}
+
 /// 1375
 
 // iofull stubs.
@@ -239,7 +285,54 @@ dialog_menu_type;
 static bool request_deletion = false;
 static Cstring session_error_msg = NULL;
 
-/// 1869
+
+// Process Startup dialog box messages.
+
+void
+on_abridge_changed                     (GtkButton        *button,
+                                        gpointer         user_data)
+{
+   // enable abridgement filename box if appropriate
+   gboolean abridge_disable =
+      gtk_toggle_button_get_active
+      (GTK_TOGGLE_BUTTON(glade_xml_get_widget
+			 (sd_xml, "startup_abridge_normal")))
+      ||
+      gtk_toggle_button_get_active
+      (GTK_TOGGLE_BUTTON(glade_xml_get_widget
+			 (sd_xml, "startup_abridge_cancel")));
+   GnomeFileEntry *abridge_file =
+      GNOME_FILE_ENTRY(glade_xml_get_widget(sd_xml, "fileentry_abridge"));
+   gtk_widget_set_sensitive(GTK_WIDGET(abridge_file), !abridge_disable);
+   // pre-fill filename if it's empty.
+   if (!abridge_disable) {
+      char *path = gnome_file_entry_get_full_path(abridge_file, FALSE);
+      if (path) g_free(path);
+      else
+	 gnome_file_entry_set_filename(abridge_file, "abridge.txt");
+   }
+}
+
+void
+on_calldb_changed                      (GtkButton       *button,
+                                        gpointer         user_data)
+{
+   // enable database filename box if appropriate
+   gboolean db_disable = gtk_toggle_button_get_active
+      (GTK_TOGGLE_BUTTON(glade_xml_get_widget(sd_xml, "startup_db_default")));
+   GnomeFileEntry *db_file =
+      GNOME_FILE_ENTRY(glade_xml_get_widget(sd_xml, "fileentry_db"));
+   gtk_widget_set_sensitive(GTK_WIDGET(db_file), !db_disable);
+   // pre-fill filename if it's empty.
+   if (!db_disable) {
+      char *path = gnome_file_entry_get_full_path(db_file, FALSE);
+      if (path) g_free(path);
+      else
+	 gnome_file_entry_set_filename(db_file, "database.txt");
+   }
+}
+
+/// 2057
 /// 2249
 bool iofull::init_step(init_callback_state s, int n)
 {
@@ -547,8 +640,6 @@ static const struct poptOption all_options[] = {
 };
 
 int main(int argc, char **argv) {
-    GdkPixbuf *ico_pixbuf;
-
    // Set the UI options for Sd.
 
    ui_options.reverse_video = false;
@@ -570,22 +661,21 @@ int main(int argc, char **argv) {
 
    sd_xml = glade_xml_new("sd.glade", NULL, NULL);
    window_startup = glade_xml_get_widget(sd_xml, "dialog_startup");
-   window_about = glade_xml_get_widget(sd_xml, "about_sd");
    window_main = glade_xml_get_widget(sd_xml, "app_main");
 
    /* Load the (inlined) sd icon. */
    ico_pixbuf = gdk_pixbuf_new_from_inline (-1, sdico_inline, FALSE, NULL);
    if (ico_pixbuf) {
       gtk_window_set_icon(GTK_WINDOW(window_main), ico_pixbuf);
-      gtk_window_set_icon(GTK_WINDOW(window_about), ico_pixbuf);
       gtk_window_set_icon(GTK_WINDOW(window_startup), ico_pixbuf);
-      // xxx: should set 'about' dialog icon, too, but that must
-      // wait until we switch to GtkAboutDialog.
-      gdk_pixbuf_unref(ico_pixbuf);
+      // note that there's still an outstanding ref to ico_pixbuf, but
+      // that's okay, because we've stashed it away in a static variable
+      // for use later.
    }
    
    /* connect the signals in the interface */
    glade_xml_signal_autoconnect(sd_xml);
+   gtk_about_dialog_set_url_hook(about_open_url, NULL, NULL);
 
    // Run the Sd program.  We'll have parsed the Sd-appropriate command-line
    // arguments into 'fake_args'.
