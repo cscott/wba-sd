@@ -1590,6 +1590,8 @@ bool iofull::init_step(init_callback_state s, int n)
       gtk_window_set_default_size(GTK_WINDOW(window_main),
 				  window_size_args[2], window_size_args[3]);
       gtk_key_snooper_install(on_key_snoop, NULL); // intercept some keypresses
+      // xxx put calls in menu and text in transcript so that auto-size
+      // happens correctly?
       gtk_widget_show(window_main);
       if (window_size_args[0]>0 && window_size_args[1]>0)
 	 gtk_window_move(GTK_WINDOW(window_main),
@@ -1718,7 +1720,14 @@ void iofull::final_initialize()
 
    // Initialize the display window linked list.
    gtk_text_buffer_set_text(main_buffer, "", -1);
-   // XX setup text buffer foreground/background colors.
+   // Setup text buffer foreground/background colors.
+   if (ui_options.reverse_video) {
+       GdkColor c;
+       gdk_color_parse("white", &c);
+       gtk_widget_modify_text(SDG("main_transcript"), GTK_STATE_NORMAL, &c);
+       gdk_color_parse("black", &c);
+       gtk_widget_modify_base(SDG("main_transcript"), GTK_STATE_NORMAL, &c);
+   }
 }
 
 
