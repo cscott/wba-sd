@@ -33,6 +33,7 @@
 	  <child>
 	    <widget class="GtkButton" id="button1">
 	      <property name="visible">True</property>
+	      <property name="tooltip" translatable="yes">This exits Sd immediately.</property>
 	      <property name="can_default">True</property>
 	      <property name="can_focus">True</property>
 	      <property name="label">gtk-cancel</property>
@@ -101,7 +102,7 @@
 		      <child>
 			<widget class="GtkTreeView" id="treeview1">
 			  <property name="visible">True</property>
-			  <property name="tooltip" translatable="yes">Pick an abridgement level for this SD session.</property>
+			  <property name="tooltip" translatable="yes">Double-click a level to choose it and start Sd.</property>
 			  <property name="can_focus">True</property>
 			  <property name="has_focus">True</property>
 			  <property name="headers_visible">False</property>
@@ -178,7 +179,7 @@
 			  <child>
 			    <widget class="GtkRadioButton" id="radiobutton1">
 			      <property name="visible">True</property>
-			      <property name="tooltip" translatable="yes">Use the default calls database, sd_calls.dat</property>
+			      <property name="tooltip" translatable="yes">Leave this checked, unless you want an alternative database (for experts only).</property>
 			      <property name="can_focus">True</property>
 			      <property name="label" translatable="yes">Default</property>
 			      <property name="use_underline">True</property>
@@ -198,7 +199,7 @@
 			  <child>
 			    <widget class="GtkRadioButton" id="radiobutton2">
 			      <property name="visible">True</property>
-			      <property name="tooltip" translatable="yes">Use a custom call database file, specified below.</property>
+			      <property name="tooltip" translatable="yes">This selects an alternative calls database (for experts only).</property>
 			      <property name="can_focus">True</property>
 			      <property name="label" translatable="yes">User Selected</property>
 			      <property name="use_underline">True</property>
@@ -277,6 +278,7 @@
 			  <child>
 			    <widget class="GtkRadioButton" id="radiobutton3">
 			      <property name="visible">True</property>
+			      <property name="tooltip" translatable="yes">Unless you are reading or writing an abridgement file (for preparing material for a group that knows only part of a dance level), leave this checked.</property>
 			      <property name="can_focus">True</property>
 			      <property name="label" translatable="yes">Normal operation</property>
 			      <property name="use_underline">True</property>
@@ -296,6 +298,7 @@
 			  <child>
 			    <widget class="GtkRadioButton" id="radiobutton4">
 			      <property name="visible">True</property>
+			      <property name="tooltip" translatable="yes">If you want to make an abridgement list (for preparing material for a group that knows only part of a dance level), check this, set the file name if desired, choose &quot;no session&quot;, and choose the level you want to abridge.  The abrigement list will be written to that file, and the program will exit immediately.  As the group learns calls, delete them from the abridgement file with a text editor.  To write material for the group, check the &quot;use abridged list&quot; box below when you run the program.</property>
 			      <property name="can_focus">True</property>
 			      <property name="label" translatable="yes">Write list</property>
 			      <property name="use_underline">True</property>
@@ -336,6 +339,7 @@
 			  <child>
 			    <widget class="GtkRadioButton" id="radiobutton6">
 			      <property name="visible">True</property>
+			      <property name="tooltip" translatable="yes">After an abridgement list has been prepared (and the calls that the group knows have been deleted from it with a text editor), check this box, and set the file name if desired, to write material for the group.  This is most conveniently done when using a session.  If you do this once, and choose a session, that file name will be remembered along with the other information for the session.  The abridgement file name for a session is shown in the list above right after the level, separated from it with a hyphen.</property>
 			      <property name="can_focus">True</property>
 			      <property name="label" translatable="yes">Use abridged list</property>
 			      <property name="use_underline">True</property>
@@ -356,6 +360,7 @@
 			  <child>
 			    <widget class="GtkRadioButton" id="radiobutton7">
 			      <property name="visible">True</property>
+			      <property name="tooltip" translatable="yes">Use this when you want to continue using a session, but no longer want an abridgement file name associated with it.  Check the box, and choose the session.  The association of the abridgement file with that session will be permanently removed.</property>
 			      <property name="can_focus">True</property>
 			      <property name="label" translatable="yes">Delete abridgement</property>
 			      <property name="use_underline">True</property>
@@ -434,6 +439,7 @@
 			  <child>
 			    <widget class="GtkSpinButton" id="spinbutton1">
 			      <property name="visible">True</property>
+			      <property name="tooltip" translatable="yes">Sessions generally keep track of sequence (card) numbers, so you usually don't need this.  If you specify a non-zero number here and then choose a session, that session's numbering will be permanently changed.</property>
 			      <property name="can_focus">True</property>
 			      <property name="climb_rate">1</property>
 			      <property name="digits">0</property>
@@ -495,6 +501,7 @@
 			  <child>
 			    <widget class="GtkCheckButton" id="checkbutton1">
 			      <property name="visible">True</property>
+			      <property name="tooltip" translatable="yes">If you check this box and choose a session (by double-clicking it or clicking &quot;accept&quot;), that session will be PERMANENTLY DELETED instead of being used, and the program will exit immediately.  You should then restart the program.</property>
 			      <property name="can_focus">True</property>
 			      <property name="label" translatable="yes">Delete this session</property>
 			      <property name="use_underline">True</property>
@@ -558,13 +565,14 @@
 		      <property name="max_saved">10</property>
 		      <property name="browse_dialog_title" translatable="yes">Session output file</property>
 		      <property name="directory_entry">False</property>
-		      <property name="modal">False</property>
+		      <property name="modal">True</property>
 		      <property name="use_filechooser">True</property>
 		      <property name="filechooser_action">GTK_FILE_CHOOSER_ACTION_SAVE</property>
 
 		      <child internal-child="entry">
 			<widget class="GtkEntry" id="combo-entry1">
 			  <property name="visible">True</property>
+			  <property name="tooltip" translatable="yes">You normally don't need this, since sessions already have output file names.  If running without a session, you might want to enter something here.  (If you don't, it will default to a name like &quot;sequence_C1.txt&quot;.)  If creating a new session, it will ask you for the file name, so you don't need to do anything here.  You can, in any case, use the &quot;change output file&quot; command to change the file name later.</property>
 			  <property name="can_focus">True</property>
 			  <property name="editable">True</property>
 			  <property name="visibility">True</property>
@@ -633,13 +641,14 @@
 			  <property name="max_saved">10</property>
 			  <property name="browse_dialog_title" translatable="yes">Call database file</property>
 			  <property name="directory_entry">False</property>
-			  <property name="modal">False</property>
+			  <property name="modal">True</property>
 			  <property name="use_filechooser">True</property>
 			  <property name="filechooser_action">GTK_FILE_CHOOSER_ACTION_OPEN</property>
 
 			  <child internal-child="entry">
 			    <widget class="GtkEntry" id="combo-entry2">
 			      <property name="visible">True</property>
+			      <property name="tooltip" translatable="yes">Enter the name of the alternative calls database (for experts only).</property>
 			      <property name="can_focus">True</property>
 			      <property name="editable">True</property>
 			      <property name="visibility">True</property>
@@ -709,13 +718,14 @@
 			  <property name="max_saved">10</property>
 			  <property name="browse_dialog_title" translatable="yes">Abridgement file</property>
 			  <property name="directory_entry">False</property>
-			  <property name="modal">False</property>
+			  <property name="modal">True</property>
 			  <property name="use_filechooser">True</property>
 			  <property name="filechooser_action">GTK_FILE_CHOOSER_ACTION_OPEN</property>
 
 			  <child internal-child="entry">
 			    <widget class="GtkEntry" id="combo-entry3">
 			      <property name="visible">True</property>
+			      <property name="tooltip" translatable="yes">Set this to the desired abridgement file name if the default name &quot;abridge.txt&quot; is not suitable.  This would be true, for example, if you have two sessions associated with different abridgement files.</property>
 			      <property name="can_focus">True</property>
 			      <property name="editable">True</property>
 			      <property name="visibility">True</property>
@@ -819,7 +829,7 @@
 			  <property name="stock_item">GNOMEUIINFO_MENU_NEW_ITEM</property>
 			  <property name="label" translatable="yes">_New</property>
 			  <property name="use_underline">True</property>
-			  <signal name="activate" handler="on_new1_activate" last_modification_time="Sat, 19 Mar 2005 05:22:05 GMT"/>
+			  <signal name="activate" handler="on_file_new_activate" last_modification_time="Mon, 21 Mar 2005 02:19:14 GMT"/>
 			</widget>
 		      </child>
 
@@ -827,7 +837,7 @@
 			<widget class="GtkImageMenuItem" id="open1">
 			  <property name="visible">True</property>
 			  <property name="stock_item">GNOMEUIINFO_MENU_OPEN_ITEM</property>
-			  <signal name="activate" handler="on_open1_activate" last_modification_time="Sat, 19 Mar 2005 05:22:05 GMT"/>
+			  <signal name="activate" handler="on_file_open_activate" last_modification_time="Mon, 21 Mar 2005 02:19:32 GMT"/>
 			</widget>
 		      </child>
 
@@ -835,7 +845,7 @@
 			<widget class="GtkImageMenuItem" id="save1">
 			  <property name="visible">True</property>
 			  <property name="stock_item">GNOMEUIINFO_MENU_SAVE_ITEM</property>
-			  <signal name="activate" handler="on_save1_activate" last_modification_time="Sat, 19 Mar 2005 05:22:05 GMT"/>
+			  <signal name="activate" handler="on_file_save_activate" last_modification_time="Mon, 21 Mar 2005 02:19:44 GMT"/>
 			</widget>
 		      </child>
 
@@ -843,7 +853,7 @@
 			<widget class="GtkImageMenuItem" id="save_as1">
 			  <property name="visible">True</property>
 			  <property name="stock_item">GNOMEUIINFO_MENU_SAVE_AS_ITEM</property>
-			  <signal name="activate" handler="on_save_as1_activate" last_modification_time="Sat, 19 Mar 2005 05:56:55 GMT"/>
+			  <signal name="activate" handler="on_file_save_as_activate" last_modification_time="Mon, 21 Mar 2005 02:19:57 GMT"/>
 			</widget>
 		      </child>
 
@@ -854,11 +864,11 @@
 		      </child>
 
 		      <child>
-			<widget class="GtkImageMenuItem" id="choose_font_for_printing1">
+			<widget class="GtkImageMenuItem" id="choose_font_for_printing">
 			  <property name="visible">True</property>
 			  <property name="label" translatable="yes">Choose _font for printing</property>
 			  <property name="use_underline">True</property>
-			  <signal name="activate" handler="on_choose_font_for_printing1_activate" last_modification_time="Sat, 19 Mar 2005 05:52:47 GMT"/>
+			  <signal name="activate" handler="on_choose_font_for_printing_activate" last_modification_time="Mon, 21 Mar 2005 03:31:21 GMT"/>
 
 			  <child internal-child="image">
 			    <widget class="GtkImage" id="image4">
@@ -878,7 +888,7 @@
 			<widget class="GtkImageMenuItem" id="print">
 			  <property name="visible">True</property>
 			  <property name="stock_item">GNOMEUIINFO_MENU_PRINT_ITEM</property>
-			  <signal name="activate" handler="on_print_activate" last_modification_time="Sat, 19 Mar 2005 05:52:47 GMT"/>
+			  <signal name="activate" handler="on_file_print_activate" last_modification_time="Mon, 21 Mar 2005 02:21:24 GMT"/>
 			</widget>
 		      </child>
 
@@ -901,7 +911,7 @@
 			<widget class="GtkImageMenuItem" id="quit1">
 			  <property name="visible">True</property>
 			  <property name="stock_item">GNOMEUIINFO_MENU_EXIT_ITEM</property>
-			  <signal name="activate" handler="on_quit1_activate" last_modification_time="Sat, 19 Mar 2005 05:22:05 GMT"/>
+			  <signal name="activate" handler="on_quit_activate" last_modification_time="Mon, 21 Mar 2005 02:21:47 GMT"/>
 			</widget>
 		      </child>
 		    </widget>
@@ -921,7 +931,7 @@
 			<widget class="GtkImageMenuItem" id="cut1">
 			  <property name="visible">True</property>
 			  <property name="stock_item">GNOMEUIINFO_MENU_CUT_ITEM</property>
-			  <signal name="activate" handler="on_cut1_activate" last_modification_time="Sat, 19 Mar 2005 05:22:05 GMT"/>
+			  <signal name="activate" handler="on_edit_cut_activate" last_modification_time="Mon, 21 Mar 2005 02:30:20 GMT"/>
 			</widget>
 		      </child>
 
@@ -929,7 +939,7 @@
 			<widget class="GtkImageMenuItem" id="copy1">
 			  <property name="visible">True</property>
 			  <property name="stock_item">GNOMEUIINFO_MENU_COPY_ITEM</property>
-			  <signal name="activate" handler="on_copy1_activate" last_modification_time="Sat, 19 Mar 2005 05:22:05 GMT"/>
+			  <signal name="activate" handler="on_edit_copy_activate" last_modification_time="Mon, 21 Mar 2005 02:30:29 GMT"/>
 			</widget>
 		      </child>
 
@@ -937,7 +947,7 @@
 			<widget class="GtkImageMenuItem" id="paste1">
 			  <property name="visible">True</property>
 			  <property name="stock_item">GNOMEUIINFO_MENU_PASTE_ITEM</property>
-			  <signal name="activate" handler="on_paste1_activate" last_modification_time="Sat, 19 Mar 2005 05:22:05 GMT"/>
+			  <signal name="activate" handler="on_edit_paste_activate" last_modification_time="Mon, 21 Mar 2005 02:30:38 GMT"/>
 			</widget>
 		      </child>
 
@@ -945,7 +955,7 @@
 			<widget class="GtkImageMenuItem" id="clear1">
 			  <property name="visible">True</property>
 			  <property name="stock_item">GNOMEUIINFO_MENU_CLEAR_ITEM</property>
-			  <signal name="activate" handler="on_clear1_activate" last_modification_time="Sat, 19 Mar 2005 05:22:05 GMT"/>
+			  <signal name="activate" handler="on_edit_clear_activate" last_modification_time="Mon, 21 Mar 2005 02:30:49 GMT"/>
 			</widget>
 		      </child>
 
@@ -1482,7 +1492,7 @@
 			<widget class="GtkImageMenuItem" id="about_sd">
 			  <property name="visible">True</property>
 			  <property name="stock_item">GNOMEUIINFO_MENU_ABOUT_ITEM</property>
-			  <signal name="activate" handler="on_about1_activate" last_modification_time="Sat, 19 Mar 2005 05:22:05 GMT"/>
+			  <signal name="activate" handler="gtk_widget_show" object="about_sd" last_modification_time="Mon, 21 Mar 2005 02:12:35 GMT"/>
 			</widget>
 		      </child>
 
@@ -1508,11 +1518,11 @@
 		      </child>
 
 		      <child>
-			<widget class="GtkImageMenuItem" id="faq">
+			<widget class="GtkImageMenuItem" id="help_faq">
 			  <property name="visible">True</property>
 			  <property name="label" translatable="yes">Frequently Asked _Questions</property>
 			  <property name="use_underline">True</property>
-			  <signal name="activate" handler="on_faq_activate" last_modification_time="Sat, 19 Mar 2005 05:52:47 GMT"/>
+			  <signal name="activate" handler="on_help_faq_activate" last_modification_time="Mon, 21 Mar 2005 02:54:13 GMT"/>
 
 			  <child internal-child="image">
 			    <widget class="GtkImage" id="image8">
@@ -1564,6 +1574,7 @@
 		  <property name="visible_horizontal">True</property>
 		  <property name="visible_vertical">True</property>
 		  <property name="is_important">False</property>
+		  <signal name="clicked" handler="on_file_new_activate" last_modification_time="Mon, 21 Mar 2005 02:20:26 GMT"/>
 		</widget>
 		<packing>
 		  <property name="expand">False</property>
@@ -1579,6 +1590,7 @@
 		  <property name="visible_horizontal">True</property>
 		  <property name="visible_vertical">True</property>
 		  <property name="is_important">False</property>
+		  <signal name="clicked" handler="on_file_open_activate" last_modification_time="Mon, 21 Mar 2005 02:20:41 GMT"/>
 		</widget>
 		<packing>
 		  <property name="expand">False</property>
@@ -1594,6 +1606,7 @@
 		  <property name="visible_horizontal">True</property>
 		  <property name="visible_vertical">True</property>
 		  <property name="is_important">False</property>
+		  <signal name="clicked" handler="on_file_save_activate" last_modification_time="Mon, 21 Mar 2005 02:20:57 GMT"/>
 		</widget>
 		<packing>
 		  <property name="expand">False</property>
@@ -1621,6 +1634,7 @@
 		  <property name="visible_horizontal">True</property>
 		  <property name="visible_vertical">True</property>
 		  <property name="is_important">False</property>
+		  <signal name="clicked" handler="on_file_print_activate" last_modification_time="Mon, 21 Mar 2005 02:21:13 GMT"/>
 		</widget>
 		<packing>
 		  <property name="expand">False</property>

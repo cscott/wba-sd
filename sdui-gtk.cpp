@@ -38,6 +38,9 @@
 #include "sd.h"
 #include "paths.h"
 #include "sdui-ico.h"
+extern "C" {
+#include "sdui-gtk.h" /* GLADE callback function prototypes */
+}
 
 // GLADE interface definitions
 static GladeXML *sd_xml;
@@ -123,11 +126,54 @@ static void UpdateStatusBar(gchar *text)
    UpdateWindow(hwndStatusBar);
 #endif
 }
-/////
-
-void some_signal_handler_func(GtkWidget *widget, gpointer user_data) {
-  /* do something useful here */
+///// 259
+///// 1362
+bool iofull::help_manual()
+{
+   GError *error = NULL;
+   gboolean result;
+   result = gnome_help_display_with_doc_id
+      (NULL, NULL, "sd_doc.html", NULL, &error);
+   if (error && !result) {
+      GtkWidget * dialog = gtk_message_dialog_new
+	 (GTK_WINDOW(window_main), GTK_DIALOG_DESTROY_WITH_PARENT,
+	  GTK_MESSAGE_ERROR, GTK_BUTTONS_CLOSE,
+	  "Can't open manual: %s", error->message);
+      g_signal_connect_swapped(dialog, "response",
+			       G_CALLBACK(gtk_widget_destroy), dialog);
+      gtk_widget_show_all(dialog);
+   }
+   return result;
 }
+void
+on_help_manual_activate(GtkMenuItem *menuitem, gpointer user_data) {
+   gg->help_manual();
+}
+
+
+bool iofull::help_faq()
+{
+   GError *error = NULL;
+   gboolean result;
+   result = gnome_help_display_with_doc_id
+      (NULL, NULL, "faq.html", NULL, &error);
+   if (error && !result) {
+      GtkWidget * dialog = gtk_message_dialog_new
+	 (GTK_WINDOW(window_main), GTK_DIALOG_DESTROY_WITH_PARENT,
+	  GTK_MESSAGE_ERROR, GTK_BUTTONS_CLOSE,
+	  "Can't open FAQ: %s", error->message);
+      g_signal_connect_swapped(dialog, "response",
+			       G_CALLBACK(gtk_widget_destroy), dialog);
+      gtk_widget_show_all(dialog);
+   }
+   return result;
+}
+void
+on_help_faq_activate(GtkMenuItem *menuitem, gpointer user_data) {
+   gg->help_faq();
+}
+
+/// 1375
 
 // iofull stubs.
 int iofull::do_abort_popup() { assert(0); }
@@ -141,8 +187,6 @@ uims_reply iofull::get_resolve_command() { assert(0); }
 bool iofull::choose_font() { assert(0); }
 bool iofull::print_this() { assert(0); }
 bool iofull::print_any() { assert(0); }
-bool iofull::help_manual() { assert(0); }
-bool iofull::help_faq() { assert(0); }
 popup_return iofull::do_outfile_popup(char dest[]) { assert(0); }
 popup_return iofull::do_header_popup(char dest[]) { assert(0); }
 popup_return iofull::do_getout_popup(char dest[]) { assert(0); }
@@ -161,7 +205,7 @@ void iofull::terminate(int code) { assert(0); }
 void iofull::bad_argument(Cstring s1, Cstring s2, Cstring s3) { assert(0); }
 void iofull::final_initialize() { assert(0); }
 
-//////////
+////////// 1834
 static void SetTitle()
 {
    gtk_window_set_title(GTK_WINDOW(window_main), main_title);
@@ -195,7 +239,8 @@ dialog_menu_type;
 static bool request_deletion = false;
 static Cstring session_error_msg = NULL;
 
-///
+/// 1869
+/// 2249
 bool iofull::init_step(init_callback_state s, int n)
 {
    switch (s) {

@@ -4,5 +4,12 @@
 <glade-project>
   <name>Sd</name>
   <program_name>sd</program_name>
+  <source_directory></source_directory>
+  <pixmaps_directory></pixmaps_directory>
   <gettext_support>FALSE</gettext_support>
+  <output_main_file>FALSE</output_main_file>
+  <output_support_files>FALSE</output_support_files>
+  <output_build_files>FALSE</output_build_files>
+  <handler_source_file>sdui-gtk.cpp</handler_source_file>
+  <handler_header_file>sdui-gtk.h</handler_header_file>
 </glade-project>
