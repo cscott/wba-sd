@@ -644,7 +644,6 @@ int main(int argc, char **argv) {
    gtk_dialog_set_default_response(GTK_DIALOG(window_startup),GTK_RESPONSE_OK);
    gtk_dialog_set_default_response(GTK_DIALOG(window_text), GTK_RESPONSE_OK);
    gtk_dialog_set_default_response(GTK_DIALOG(window_font), GTK_RESPONSE_OK);
-   gtk_widget_grab_default(SDG("main_accept"));
    
    /* connect the signals in the interface */
    glade_xml_signal_autoconnect(sd_xml);
