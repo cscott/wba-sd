@@ -663,9 +663,8 @@ int main(int argc, char **argv) {
        "changed", G_CALLBACK(on_startup_list_selection_changed), NULL);
 
    /* disable stuff we haven't implemented yet */
-   char *unimpl[] = { "file_new", "file_open", "file_save", "file_save_as",
-		      "toolbutton_new", "toolbutton_open", "toolbutton_save",
-		      "toolbutton_print",
+   char *unimpl[] = { "file_new", "file_open",
+		      "toolbutton_new", "toolbutton_open", "toolbutton_print",
 		      "file_choose_font", "file_print", "file_print_any",
 		      "edit_cut", "edit_copy", "edit_paste", "edit_clear" };
    for (unsigned i=0; i<sizeof(unimpl)/sizeof(*unimpl); i++)
@@ -2487,7 +2486,7 @@ void iofull::terminate(int code)
 #if 0
             GLOBprinter->print_this(outfile_string, szMainTitle, false);
 #else
-	 assert(0); /* unimplemented */
+	 g_warning("Unimplemented");
 #endif
       }
 
@@ -2515,11 +2514,26 @@ on_file_open_activate(GtkMenuItem *menuitem, gpointer user_data) {
 }
 void
 on_file_save_activate(GtkMenuItem *menuitem, gpointer user_data) {
-    g_warning("Unimplemented");
+   do_menu(ID_COMMAND_ENDTHISSEQUENCE);
 }
 void
 on_file_save_as_activate(GtkMenuItem *menuitem, gpointer user_data) {
-    g_warning("Unimplemented");
+   gchar buf[MAX_FILENAME_LENGTH+25];
+   if (POPUP_ACCEPT_WITH_STRING == gg->do_outfile_popup(buf)) {
+      // this duplicates code in sdutil.cpp:do_change_outfile()
+      if (install_outfile_string(buf)) {
+	 g_snprintf(buf, sizeof(buf),
+		    "Output file changed to \"%s\"", outfile_string);
+	 writestuff(buf); newline();
+	 do_menu(ID_COMMAND_ENDTHISSEQUENCE);
+      } else {
+	 writestuff("No write access to that file; 'save as' aborted.");
+	 newline();
+      }
+   } else {
+      writestuff("'Save as' aborted.");
+      newline();
+   }
 }
 void
 on_edit_cut_activate(GtkMenuItem *menuitem, gpointer user_data) {
