@@ -4,6 +4,7 @@
 # it operate the way we want (ANSI language, standards conformance,
 # target hardware, etc.)
 CC = g++
+WINDRES = windres
 
 # This gives any "-D" switches that we always need to send to the compiler.
 DEFS = -Wall -Wno-switch -Wno-uninitialized -Wno-char-subscripts
@@ -55,20 +56,20 @@ sdlib.dll: $(SDLIB_OBJS)
 	strip sdlib.dll
 
 sdres.o: sd.rc
-	windres sd.rc sdres.o
+	$(WINDRES) sd.rc sdres.o
 
 deployres.o: deploy.rc
-	windres deploy.rc deployres.o
+	$(WINDRES) deploy.rc deployres.o
 
 sdttyres.o: sdtty.rc
-	windres sdtty.rc sdttyres.o
+	$(WINDRES) sdtty.rc sdttyres.o
 
 mkcalls.exe: $(MKCALLS_OBJS)
 	$(CC) -o $@ $(MKCALLS_OBJS)
 	strip mkcalls.exe
 
 sdtty.exe: libsdlib.a sdlib.dll $(SDTTY_OBJS) sdttyres.o
-	$(CC) -o $@ $(SDTTY_OBJS) sdttyres.o $(SDTTY_LIBS)
+	$(CC) -mconsole -o $@ $(SDTTY_OBJS) sdttyres.o $(SDTTY_LIBS)
 	strip sdtty.exe
 
 sd.exe: libsdlib.a sdlib.dll $(SD_OBJS) sdres.o
@@ -80,7 +81,7 @@ deploy.exe:  deploy.o deployres.o
 	strip deploy.exe
 
 sd_calls.dat: sd_calls.txt mkcalls.exe
-	mkcalls
+	./mkcalls
 
 .SUFFIXES: .c .cpp
 
@@ -129,14 +130,14 @@ sdprint.o: sdprint.h
 $(SDLIB_OBJS) $(SDTTY_OBJS): sd.h database.h paths.h
 
 clean::
-	-del *.o deploy.exe sd.exe sdtty.exe mkcalls.exe sd_calls.dat \
+	-$(RM) *.o deploy.exe sd.exe sdtty.exe mkcalls.exe sd_calls.dat \
                libsdlib.a sdlib.dll ..\sddoc\sd_source.zip
 
 cleanup::
-	-del *.o libsdlib.a
+	-$(RM) *.o libsdlib.a
 
 savesource::
-	-del ..\sddoc\sd_source.zip
+	-$(RM) ..\sddoc\sd_source.zip
 	zip ..\sddoc\sd_source $(SDLIB_OBJS:.o=.cpp) $(SDTTY_OBJS:.o=.cpp) \
                $(SD_OBJS:.o=.cpp) $(MKCALLS_OBJS:.o=.cpp) deploy.cpp $(HFILES) \
                sd.rc sdtty.rc deploy.rc sdui-ttu.cpp $(ICONS) $(SHORTCUTS) \
