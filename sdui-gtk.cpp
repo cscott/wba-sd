@@ -379,17 +379,23 @@ static void check_text_change(bool doing_escape)
 static popup_return do_general_text_popup(Cstring prompt1, Cstring prompt2,
                                           Cstring seed, char dest[])
 {
+   GtkWidget *line1 = SDG("text_line1"), *line2 = SDG("text_line2");
+   GtkWidget *entry = SDG("text_entry");
    int result;
-   gtk_label_set_text(GTK_LABEL(SDG("text_line1")), prompt1);
-   gtk_label_set_text(GTK_LABEL(SDG("text_line2")), prompt2);
-   gtk_entry_set_text(GTK_ENTRY(SDG("text_entry")), seed);
-   gtk_widget_grab_focus(SDG("text_entry"));
+   gtk_widget_show(line1);
+   gtk_widget_show(line2);
+   gtk_label_set_text(GTK_LABEL(line1), prompt1);
+   gtk_label_set_text(GTK_LABEL(line2), prompt2);
+   if (prompt1[0]=='\0') gtk_widget_hide(line1);
+   if (prompt2[0]=='\0') gtk_widget_hide(line2);
+   gtk_entry_set_text(GTK_ENTRY(entry), seed);
+   gtk_widget_grab_focus(entry);
    gtk_widget_show(window_text);
    result = gtk_dialog_run(GTK_DIALOG(window_text));
    gtk_widget_hide(window_text);
    dest[0] = 0;
    if (result == GTK_RESPONSE_OK) {
-      const gchar *txt = gtk_entry_get_text(GTK_ENTRY(SDG("text_entry")));
+      const gchar *txt = gtk_entry_get_text(GTK_ENTRY(entry));
       if (txt && txt[0]) {
 	 strcpy(dest, txt); // XXX UNSAFE!  WATCH BUFFER LENGTH!
 	 return POPUP_ACCEPT_WITH_STRING;
