@@ -600,8 +600,14 @@ int main(int argc, char **argv) {
    /* Set up the various treeview widgets */
    startup_list = GTK_TREE_VIEW(SDG("startup_list"));
    renderer = gtk_cell_renderer_text_new();
-   column = gtk_tree_view_column_new_with_attributes("Level/Session",renderer,
+   column = gtk_tree_view_column_new_with_attributes("Filename",renderer,
 						     "text", 1, NULL);
+   gtk_tree_view_append_column(startup_list, column);
+   column = gtk_tree_view_column_new_with_attributes("Level",renderer,
+						     "text", 2, NULL);
+   gtk_tree_view_append_column(startup_list, column);
+   column = gtk_tree_view_column_new_with_attributes("Sequence #",renderer,
+						     "text", 3, NULL);
    gtk_tree_view_append_column(startup_list, column);
    column = gtk_tree_view_column_new_with_attributes("Commands", renderer,
 						     "text", 0, NULL);
@@ -1051,17 +1057,88 @@ on_app_main_delete_event(GtkWidget *widget, GdkEvent *event,
       return FALSE; // never actually reached.
 }
 
-static void setup_level_menu(GtkListStore *startup_list)
+static void setup_session_menu(void)
 {
+   GtkTreeView *tv;
+   GtkTooltipsData *td;
+   GtkListStore *startup_list;
+   char line[MAX_FILENAME_LENGTH];
+   GtkTreeIter iter;
+   int i=0;
+   
+   // Set caption and tool-tip.
+   tv = GTK_TREE_VIEW(SDG("startup_list"));
+   gtk_label_set_markup(GTK_LABEL(SDG("startup_caption")),
+			"<b>Choose a session:</b>");
+   td = gtk_tooltips_data_get(GTK_WIDGET(tv));
+   gtk_tooltips_set_tip
+      (td->tooltips, td->widget,
+       "Double-click a session to choose it and start Sd.\n"
+       "Double-click \"(no session)\" if you don't want to run under "
+       "any session at this time.\n"
+       "Double-click \"(create a new session)\" if you want to add a "
+       "new session to the list.\n"
+       "You will be asked about the particulars for that new session.",
+       NULL);
+   
+   // create and set tree model and view.
+   startup_list = gtk_list_store_new
+      (4, G_TYPE_INT, G_TYPE_STRING, G_TYPE_STRING, G_TYPE_STRING);
+      
+   while (get_next_session_line(line)) {
+      char filename[strlen(line)+1], session_level[strlen(line)+1];
+      char sequence_number[10] = { '\0' };
+      int num_fields, txt_start, item_no, seq_no;
+      num_fields = sscanf(line, "%d %n%s %s %d", &item_no, &txt_start,
+			  filename, session_level, &seq_no);
+      if (num_fields < 4) {
+	 strncpy(filename, line+txt_start, sizeof(filename));
+	 session_level[0]=0;
+	 sequence_number[0]=0;
+      } else
+	 snprintf(sequence_number, sizeof(sequence_number), "%d", seq_no);
+      gtk_list_store_insert_with_values
+	 (startup_list, &iter, G_MAXINT,
+	  0, i++, 1, filename, 2, session_level, 3, sequence_number, -1);
+   }
+   gtk_tree_view_set_model(tv, GTK_TREE_MODEL(startup_list));
+   gtk_tree_view_column_set_visible(gtk_tree_view_get_column(tv, 0), TRUE);
+   gtk_tree_view_column_set_visible(gtk_tree_view_get_column(tv, 2), TRUE);
+   gtk_tree_view_set_headers_visible(tv, TRUE);
+   gtk_tree_view_columns_autosize(tv);
+}
+static void setup_level_menu(void)
+{
+   GtkTreeView *tv;
+   GtkTooltipsData *td;
+   GtkListStore *startup_list;
    GtkTreeIter iter;
    int lev, i=0;
+
+   // Set caption and tool-tip.
+   tv = GTK_TREE_VIEW(SDG("startup_list"));
+   gtk_label_set_markup(GTK_LABEL(SDG("startup_caption")),
+			"<b>Choose a level:</b>");
+   td = gtk_tooltips_data_get(GTK_WIDGET(tv));
+   gtk_tooltips_set_tip
+      (td->tooltips, td->widget,
+       "Double-click a level to choose it and start Sd.", NULL);
+
+   // create and set tree model and view.
+   startup_list = gtk_list_store_new
+      (4, G_TYPE_INT, G_TYPE_STRING, G_TYPE_STRING, G_TYPE_STRING);
 
    for (lev=(int)l_mainstream ; ; lev++) {
       Cstring this_string = getout_strings[lev];
       if (!this_string[0]) break;
       gtk_list_store_insert_with_values(startup_list, &iter, G_MAXINT,
-					0, i++, 1, this_string, -1);
+					0, i++, 2, this_string, -1);
    }
+   gtk_tree_view_column_set_visible(gtk_tree_view_get_column(tv, 0), FALSE);
+   gtk_tree_view_column_set_visible(gtk_tree_view_get_column(tv, 2), FALSE);
+   gtk_tree_view_set_model(tv, GTK_TREE_MODEL(startup_list));
+   gtk_tree_view_set_headers_visible(tv, FALSE);
+   gtk_tree_view_columns_autosize(tv);
 }
 
 
@@ -1228,6 +1305,8 @@ static gboolean startup_accept()
          // screen and go back for another round.
 
          if (calling_level == l_nonexistent_concept) {
+	    setup_level_menu();
+	    dialog_menu_type = dialog_level;
 	    return FALSE;
          }
       }
@@ -1336,9 +1415,7 @@ static gboolean startup_accept()
 static void startup_init()
 {
    GtkSpinButton *seq_num_override;
-   static GtkListStore *startup_list = NULL;
    GtkTreeSelection *ts;
-   GtkTooltipsData *td;
    // Set up the sequence number override.  Its text is the null string
    // unless a command line value was given.
 
@@ -1395,50 +1472,18 @@ static void startup_init()
    // Put up the session list or the level list,
    // depending on whether a session file is in use.
 
-   if (!startup_list) {
-      startup_list = gtk_list_store_new (2, G_TYPE_INT, G_TYPE_STRING);
-      gtk_tree_view_set_model(GTK_TREE_VIEW(SDG("startup_list")),
-			      GTK_TREE_MODEL(startup_list));
-   } else {
-      gtk_list_store_clear(startup_list);
-   }
    ts = gtk_tree_view_get_selection(GTK_TREE_VIEW(SDG("startup_list")));
    gtk_tree_selection_set_mode(ts, GTK_SELECTION_BROWSE);
-   td = gtk_tooltips_data_get(GTK_WIDGET(SDG("startup_list")));
 
    // If user specified session number on the command line, we must
    // just be looking for a level.  So skip the session part.
 
    if (ui_options.force_session == -1000000 && !get_first_session_line()) {
-      char line[MAX_FILENAME_LENGTH];
-      GtkTreeIter iter;
-      int i=0;
-
-      gtk_label_set_markup(GTK_LABEL(SDG("startup_caption")),
-			   "<b>Choose a session:</b>");
-      gtk_tooltips_set_tip
-	 (td->tooltips, td->widget,
-	  "Double-click a session to choose it and start Sd.\n"
-	  "Double-click \"(no session)\" if you don't want to run under "
-	  "any session at this time.\n"
-	  "Double-click \"(create a new session)\" if you want to add a "
-	  "new session to the list.\n"
-	  "You will be asked about the particulars for that new session.",
-	  NULL);
-
-      while (get_next_session_line(line))
-	 gtk_list_store_insert_with_values(startup_list, &iter, G_MAXINT,
-					   0, i++, 1, line, -1);
+      setup_session_menu();
       dialog_menu_type = dialog_session;
    }
    else if (calling_level == l_nonexistent_concept) {
-      gtk_label_set_markup(GTK_LABEL(SDG("startup_caption")),
-			   "<b>Choose a level:</b>");
-      gtk_tooltips_set_tip
-	 (td->tooltips, td->widget,
-	  "Double-click a level to choose it and start Sd.", NULL);
-
-      setup_level_menu(startup_list);
+      setup_level_menu();
       dialog_menu_type = dialog_level;
    }
    else {
@@ -1498,12 +1543,12 @@ bool iofull::init_step(init_callback_state s, int n)
 
       if (ui_options.force_session == -1000000) {
 	 gint result;
+	 startup_init();
+	 gtk_widget_show(window_startup);
 	 do {
-	    startup_init();
-	    gtk_widget_show(window_startup);
 	    result = gtk_dialog_run(GTK_DIALOG(window_startup));
-	    gtk_widget_hide(window_startup);
 	 } while (result==GTK_RESPONSE_OK && !startup_accept());
+	 gtk_widget_hide(window_startup);
 	 if (result!=GTK_RESPONSE_OK) {
 	    // User hit the "cancel" button.
 	    session_index = 0;  // Prevent attempts to update session file.
