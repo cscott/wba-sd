@@ -172,6 +172,13 @@ static gboolean warp_to_entry_end(gpointer data) {
    gtk_editable_set_position(GTK_EDITABLE(data), -1);
    return FALSE; // once only
 }
+static gboolean scroll_transcript_to_mark(gpointer data) {
+   GtkTextView *main_transcript = GTK_TEXT_VIEW(SDG("main_transcript"));
+   GtkTextMark *mark = GTK_TEXT_MARK(data);
+   gtk_text_view_scroll_mark_onscreen(main_transcript, mark);
+   gtk_text_buffer_delete_mark(main_buffer, mark);
+   return FALSE; // once only
+}
 static void check_text_change(bool doing_escape)
 {
    char szLocalString[MAX_TEXT_LINE_LENGTH];
@@ -231,7 +238,7 @@ static void check_text_change(bool doing_escape)
 	       main_transcript = GTK_TEXT_VIEW(SDG("main_transcript"));
 	       gtk_text_buffer_get_end_iter(main_buffer, &iter);
 	       start_mark = gtk_text_buffer_create_mark
-		  (main_buffer, QUESTION_MARK, &iter, TRUE);
+		  (main_buffer, NULL, &iter, TRUE);
 
 	       g_snprintf(GLOB_user_input, sizeof(GLOB_user_input),
 			  "%s%n", szLocalString, &GLOB_user_input_size);
@@ -247,7 +254,16 @@ static void check_text_change(bool doing_escape)
 	       end_mark = gtk_text_buffer_create_mark
 		  (main_buffer, NULL, &iter, FALSE);
 	       gtk_text_view_scroll_mark_onscreen(main_transcript, end_mark);
-	       gtk_text_view_scroll_mark_onscreen(main_transcript, start_mark);
+	       // allow this first scroll to complete before we do this second
+	       g_idle_add_full(G_PRIORITY_HIGH_IDLE+15,
+			       scroll_transcript_to_mark,
+			       start_mark, NULL);
+
+	       // make the start mark into the QUESTION_MARK (can't do this
+	       // before 'match_user_input' or it would be erased)
+	       gtk_text_buffer_get_iter_at_mark(main_buffer,&iter, start_mark);
+	       gtk_text_buffer_create_mark
+		  (main_buffer, QUESTION_MARK, &iter, TRUE);
 	       gtk_text_buffer_delete_mark(main_buffer, end_mark);
                // Give focus to the transcript, so the user can scroll easily.
 	       gtk_widget_grab_focus(GTK_WIDGET(main_transcript));
