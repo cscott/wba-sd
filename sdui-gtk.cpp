@@ -695,13 +695,23 @@ on_help_about_activate(GtkMenuItem *menuitem, gpointer user_data) {
       "SD comes with ABSOLUTELY NO WARRANTY.\n"
       "This is free software, and you are welcome to redistribute it\n"
       "under certain conditions.  For details see the license.";
+   static const gchar *license =
+      "SD comes with ABSOLUTELY NO WARRANTY; for details see the license.\n"
+      "This is free software, and you are welcome to redistribute "
+      "it under certain conditions; for details see the "
+      "license.\n"
+      "You should have received a copy of the GNU General Public "
+      "License along with this program, in the file "
+      "\"COPYING.txt\"; if not, write to the Free Software "
+      "Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA "
+      "02111-1307 USA.";
    gtk_show_about_dialog(GTK_WINDOW(window_main),
 			 "name", PACKAGE,
 			 "version", VERSION,
 			 "logo", ico_pixbuf,
 			 "copyright", copyright,
 			 "comments", "Sd: Square Dance Caller's Helper.",
-			 "license", "GPL",
+			 "license", license,
 			 "website", "http://www.lynette.org/sd",
 			 "authors", authors,
 			 NULL);
@@ -1547,7 +1557,7 @@ bool iofull::init_step(init_callback_state s, int n)
 
 void iofull::final_initialize()
 {
-   ui_options.use_escapes_for_drawing_people = 2;
+   ui_options.use_escapes_for_drawing_people = 0;//2;
 
 #if 0
    // Install the pointy triangles.
@@ -2326,7 +2336,8 @@ void iofull::terminate(int code)
       event = gdk_event_new (GDK_DELETE);
       event->any.window = window_main->window;
       event->any.send_event = TRUE;
-      gtk_widget_event (window_main, event);
+      if (GTK_WIDGET_REALIZED(window_main))//perhaps cancel from startup dialog
+	 gtk_widget_event (window_main, event);
       gdk_event_free (event);
    }
 
