@@ -622,6 +622,8 @@ int main(int argc, char **argv) {
    /* Set up the transcript buffer */
    main_buffer = gtk_text_buffer_new(NULL);
    gtk_text_view_set_buffer(GTK_TEXT_VIEW(SDG("main_transcript")),main_buffer);
+   gtk_text_buffer_create_tag(main_buffer, "picture",
+			      "family", "monospace", NULL);
 
    /* Load the (inlined) sd icon. */
    ico_pixbuf = gdk_pixbuf_new_from_inline (-1, sdico_inline, FALSE, NULL);
@@ -2316,7 +2318,11 @@ void iofull::add_new_line(char the_line[], uint32 drawing_picture)
    // we ought to do something fancier if 'drawing_picture'
    // but for now we're just going to ignore that parameter.
    gtk_text_buffer_get_end_iter(main_buffer, &iter);
-   gtk_text_buffer_insert(main_buffer, &iter, buf, -1);
+   if (!drawing_picture)
+      gtk_text_buffer_insert(main_buffer, &iter, buf, -1);
+   else
+      gtk_text_buffer_insert_with_tags_by_name
+	 (main_buffer, &iter, buf, -1, "picture", NULL);
 }
 
 
