@@ -2053,16 +2053,48 @@ popup_return iofull::do_comment_popup(char dest[])
       return POPUP_DECLINE;
 }
 
+void
+on_outfile_use_date_toggled(GtkToggleButton *toggle, gpointer user_data){
+   GtkFileChooser *chooser = GTK_FILE_CHOOSER(user_data);
+   if (gtk_toggle_button_get_active(toggle)) {
+      /* use current date */
+      gtk_file_chooser_set_action(chooser, GTK_FILE_CHOOSER_ACTION_SELECT_FOLDER);
+   } else {
+      /* don't use current date */
+      gtk_file_chooser_set_action(chooser, GTK_FILE_CHOOSER_ACTION_SAVE);
+   }
+}
 
 popup_return iofull::do_outfile_popup(char dest[])
 {
-   char buffer[MAX_TEXT_LINE_LENGTH];
-   g_snprintf(buffer, sizeof(buffer),
-	      "Current sequence output file is \"%s\".", outfile_string);
-   return do_general_text_popup(buffer,
-                                "Enter new name (or '+' to base it on today's date):",
-                                outfile_string,
-                                dest);
+   GtkWidget *dialog, *toggle;
+   popup_return retval = POPUP_DECLINE;
+
+   dialog = gtk_file_chooser_dialog_new
+      ("Sequence output file name", GTK_WINDOW(window_main),
+       GTK_FILE_CHOOSER_ACTION_SAVE,
+       GTK_STOCK_CANCEL, GTK_RESPONSE_CANCEL,
+       GTK_STOCK_SAVE, GTK_RESPONSE_ACCEPT,
+       NULL);
+   toggle = gtk_check_button_new_with_label("Base filename on today's date");
+   gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(toggle), FALSE);
+   g_signal_connect(G_OBJECT(toggle), "toggled",
+		    G_CALLBACK(on_outfile_use_date_toggled), dialog);
+   gtk_file_chooser_set_extra_widget(GTK_FILE_CHOOSER(dialog), toggle);
+   gtk_widget_show(toggle);
+
+   gtk_file_chooser_set_current_name(GTK_FILE_CHOOSER(dialog), outfile_string);
+   if (gtk_dialog_run (GTK_DIALOG (dialog)) == GTK_RESPONSE_ACCEPT) {
+      char *filename;
+      filename = gtk_file_chooser_get_filename (GTK_FILE_CHOOSER (dialog));
+      g_strlcpy(dest, filename, MAX_FILENAME_LENGTH);
+      g_free (filename);
+      retval = POPUP_ACCEPT_WITH_STRING;
+   }
+   
+   gtk_widget_destroy (dialog);
+   /*"Enter new name (or '+' to base it on today's date):"*/
+   return retval;
 }
 
 
