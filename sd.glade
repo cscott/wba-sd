@@ -100,7 +100,8 @@
 		      <property name="window_placement">GTK_CORNER_TOP_LEFT</property>
 
 		      <child>
-			<widget class="GtkTreeView" id="treeview1">
+			<widget class="GtkTreeView" id="startup_list">
+			  <property name="height_request">320</property>
 			  <property name="visible">True</property>
 			  <property name="tooltip" translatable="yes">Double-click a level to choose it and start Sd.</property>
 			  <property name="can_focus">True</property>
@@ -117,7 +118,7 @@
 	      </child>
 
 	      <child>
-		<widget class="GtkLabel" id="label1">
+		<widget class="GtkLabel" id="startup_caption">
 		  <property name="visible">True</property>
 		  <property name="label" translatable="yes">&lt;b&gt;Choose a level:&lt;/b&gt;</property>
 		  <property name="use_underline">False</property>
@@ -444,7 +445,7 @@
 			  <property name="right_padding">0</property>
 
 			  <child>
-			    <widget class="GtkSpinButton" id="spinbutton1">
+			    <widget class="GtkSpinButton" id="seq_num_override">
 			      <property name="visible">True</property>
 			      <property name="tooltip" translatable="yes">Sessions generally keep track of sequence (card) numbers, so you usually don't need this.  If you specify a non-zero number here and then choose a session, that session's numbering will be permanently changed.</property>
 			      <property name="can_focus">True</property>
@@ -454,7 +455,7 @@
 			      <property name="update_policy">GTK_UPDATE_ALWAYS</property>
 			      <property name="snap_to_ticks">True</property>
 			      <property name="wrap">False</property>
-			      <property name="adjustment">0 0 32768 1 10 10</property>
+			      <property name="adjustment">0 0 32000 1 10 10</property>
 			    </widget>
 			  </child>
 			</widget>
@@ -1726,7 +1727,7 @@
 			      <property name="window_placement">GTK_CORNER_TOP_LEFT</property>
 
 			      <child>
-				<widget class="GtkTreeView" id="treeview_cmds">
+				<widget class="GtkTreeView" id="main_cmds">
 				  <property name="visible">True</property>
 				  <property name="can_focus">True</property>
 				  <property name="headers_visible">False</property>

@@ -46,6 +46,7 @@ extern "C" {
 static GladeXML *sd_xml;
 static GtkWidget *window_startup, *window_main;
 static GdkPixbuf *ico_pixbuf;
+#define SDG(widget_name) (glade_xml_get_widget(sd_xml, (widget_name)))
 
 // default window size.
 static int window_size_args[4] = {-1, -1, -1, -1};
@@ -251,7 +252,21 @@ void iofull::terminate(int code) { assert(0); }
 void iofull::bad_argument(Cstring s1, Cstring s2, Cstring s3) { assert(0); }
 void iofull::final_initialize() { assert(0); }
 
-////////// 1834
+////////// 1815
+static void setup_level_menu(GtkListStore *startup_list)
+{
+   GtkTreeIter iter;
+   int lev;
+
+   for (lev=(int)l_mainstream ; ; lev++) {
+      Cstring this_string = getout_strings[lev];
+      if (!this_string[0]) break;
+      gtk_list_store_insert_with_values(startup_list, &iter, G_MAXINT,
+					0, this_string, -1);
+   }
+}
+
+
 static void SetTitle()
 {
    gtk_window_set_title(GTK_WINDOW(window_main), main_title);
@@ -295,14 +310,11 @@ on_abridge_changed                     (GtkButton        *button,
    // enable abridgement filename box if appropriate
    gboolean abridge_disable =
       gtk_toggle_button_get_active
-      (GTK_TOGGLE_BUTTON(glade_xml_get_widget
-			 (sd_xml, "startup_abridge_normal")))
-      ||
+      (GTK_TOGGLE_BUTTON(SDG("startup_abridge_normal"))) ||
       gtk_toggle_button_get_active
-      (GTK_TOGGLE_BUTTON(glade_xml_get_widget
-			 (sd_xml, "startup_abridge_cancel")));
-   GnomeFileEntry *abridge_file =
-      GNOME_FILE_ENTRY(glade_xml_get_widget(sd_xml, "fileentry_abridge"));
+      (GTK_TOGGLE_BUTTON(SDG("startup_abridge_cancel")));
+
+   GnomeFileEntry *abridge_file = GNOME_FILE_ENTRY(SDG("fileentry_abridge"));
    gtk_widget_set_sensitive(GTK_WIDGET(abridge_file), !abridge_disable);
    // pre-fill filename if it's empty.
    if (!abridge_disable) {
@@ -319,9 +331,8 @@ on_calldb_changed                      (GtkButton       *button,
 {
    // enable database filename box if appropriate
    gboolean db_disable = gtk_toggle_button_get_active
-      (GTK_TOGGLE_BUTTON(glade_xml_get_widget(sd_xml, "startup_db_default")));
-   GnomeFileEntry *db_file =
-      GNOME_FILE_ENTRY(glade_xml_get_widget(sd_xml, "fileentry_db"));
+      (GTK_TOGGLE_BUTTON(SDG("startup_db_default")));
+   GnomeFileEntry *db_file = GNOME_FILE_ENTRY(SDG("fileentry_db"));
    gtk_widget_set_sensitive(GTK_WIDGET(db_file), !db_disable);
    // pre-fill filename if it's empty.
    if (!db_disable) {
@@ -332,8 +343,120 @@ on_calldb_changed                      (GtkButton       *button,
    }
 }
 
-/// 2057
-/// 2249
+static void startup_init()
+{
+   GtkSpinButton *seq_num_override;
+   static GtkListStore *startup_list = NULL;
+   GtkTreeSelection *ts;
+   GtkTooltipsData *td;
+   // Set up the sequence number override.  Its text is the null string
+   // unless a command line value was given.
+
+   seq_num_override = GTK_SPIN_BUTTON(SDG("seq_num_override"));
+   gtk_entry_set_text(GTK_ENTRY(seq_num_override), "");
+
+   if (ui_options.sequence_num_override > 0)
+      gtk_spin_button_set_value(seq_num_override,
+				ui_options.sequence_num_override);
+
+   // Select the default radio buttons.
+
+   switch (glob_abridge_mode) {
+   case abridge_mode_writing:
+      gtk_toggle_button_set_active
+	 (GTK_TOGGLE_BUTTON(SDG("startup_abridge_write")), TRUE);
+      if (abridge_filename)
+	 gnome_file_entry_set_filename
+	    (GNOME_FILE_ENTRY(SDG("fileentry_abridge")), abridge_filename);
+      break;
+   case abridge_mode_writing_full:
+      gtk_toggle_button_set_active
+	 (GTK_TOGGLE_BUTTON(SDG("startup_abridge_write_full")), TRUE);
+      if (abridge_filename)
+	 gnome_file_entry_set_filename
+	    (GNOME_FILE_ENTRY(SDG("fileentry_abridge")), abridge_filename);
+      break;
+   case abridge_mode_abridging:
+      gtk_toggle_button_set_active
+	 (GTK_TOGGLE_BUTTON(SDG("startup_abridge_abridge")), TRUE);
+      if (abridge_filename)
+	 gnome_file_entry_set_filename
+	    (GNOME_FILE_ENTRY(SDG("fileentry_abridge")), abridge_filename);
+      break;
+   default:
+      gtk_toggle_button_set_active
+	 (GTK_TOGGLE_BUTTON(SDG("startup_abridge_normal")), TRUE);
+      if (abridge_filename)
+	 gnome_file_entry_set_filename
+	    (GNOME_FILE_ENTRY(SDG("fileentry_abridge")), "");
+      break;
+   }
+
+   gtk_toggle_button_set_active
+      (GTK_TOGGLE_BUTTON(SDG("startup_db_default")), TRUE);
+
+   // Seed the various file names with the null string.
+
+   gnome_file_entry_set_filename
+	    (GNOME_FILE_ENTRY(SDG("fileentry_output")), "");
+   gnome_file_entry_set_filename
+	    (GNOME_FILE_ENTRY(SDG("fileentry_db")), "");
+
+   // Put up the session list or the level list,
+   // depending on whether a session file is in use.
+
+   if (!startup_list) {
+      startup_list = gtk_list_store_new (1, G_TYPE_STRING);
+      gtk_tree_view_set_model(GTK_TREE_VIEW(SDG("startup_list")),
+			      GTK_TREE_MODEL(startup_list));
+   } else {
+      gtk_list_store_clear(startup_list);
+   }
+   ts = gtk_tree_view_get_selection(GTK_TREE_VIEW(SDG("startup_list")));
+   gtk_tree_selection_set_mode(ts, GTK_SELECTION_BROWSE);
+   td = gtk_tooltips_data_get(GTK_WIDGET(SDG("startup_list")));
+
+   // If user specified session number on the command line, we must
+   // just be looking for a level.  So skip the session part.
+
+   if (ui_options.force_session == -1000000 && !get_first_session_line()) {
+      char line[MAX_FILENAME_LENGTH];
+      GtkTreeIter iter;
+
+      gtk_label_set_markup(GTK_LABEL(SDG("startup_caption")),
+			   "<b>Choose a session:</b>");
+      gtk_tooltips_set_tip
+	 (td->tooltips, td->widget,
+	  "Double-click a session to choose it and start Sd.\n"
+	  "Double-click \"(no session)\" if you don't want to run under "
+	  "any session at this time.\n"
+	  "Double-click \"(create a new session)\" if you want to add a "
+	  "new session to the list.\n"
+	  "You will be asked about the particulars for that new session.",
+	  NULL);
+
+      while (get_next_session_line(line))
+	 gtk_list_store_insert_with_values(startup_list, &iter, G_MAXINT,
+					   0, line, -1);
+      dialog_menu_type = dialog_session;
+   }
+   else if (calling_level == l_nonexistent_concept) {
+      gtk_label_set_markup(GTK_LABEL(SDG("startup_caption")),
+			   "<b>Choose a level:</b>");
+      gtk_tooltips_set_tip
+	 (td->tooltips, td->widget,
+	  "Double-click a level to choose it and start Sd.", NULL);
+
+      setup_level_menu(startup_list);
+      dialog_menu_type = dialog_level;
+   }
+   else {
+      gtk_label_set_markup(GTK_LABEL(SDG("startup_caption")), "");
+      dialog_menu_type = dialog_none;
+   }
+   gtk_tree_selection_unselect_all(ts);
+}
+
 bool iofull::init_step(init_callback_state s, int n)
 {
    switch (s) {
@@ -379,10 +502,15 @@ bool iofull::init_step(init_callback_state s, int n)
 
       if (ui_options.force_session == -1000000) {
 	 gint result;
+	 startup_init();
 	 gtk_widget_show(window_startup);
 	 result = gtk_dialog_run(GTK_DIALOG(window_startup));
-	 if (result!=GTK_RESPONSE_ACCEPT)
+	 if (result!=GTK_RESPONSE_ACCEPT) {
+	    // User hit the "cancel" button.
+	    session_index = 0;  // Prevent attempts to update session file.
+	    general_final_exit(0);
             gg->fatal_error_exit(1, "Startup cancelled", "");
+	 }
 	 gtk_widget_hide(window_startup);
       }
 
@@ -640,6 +768,8 @@ static const struct poptOption all_options[] = {
 };
 
 int main(int argc, char **argv) {
+   GtkCellRenderer *renderer;
+   GtkTreeViewColumn *column;
    // Set the UI options for Sd.
 
    ui_options.reverse_video = false;
@@ -660,8 +790,16 @@ int main(int argc, char **argv) {
    // initialize the interface.
 
    sd_xml = glade_xml_new("sd.glade", NULL, NULL);
-   window_startup = glade_xml_get_widget(sd_xml, "dialog_startup");
-   window_main = glade_xml_get_widget(sd_xml, "app_main");
+   window_startup = SDG("dialog_startup");
+   window_main = SDG("app_main");
+
+   renderer = gtk_cell_renderer_text_new();
+   column = gtk_tree_view_column_new_with_attributes("Level/Session",renderer,
+						     "text", 0, NULL);
+   gtk_tree_view_append_column(GTK_TREE_VIEW(SDG("startup_list")), column);
+   column = gtk_tree_view_column_new_with_attributes("Commands", renderer,
+						     "text", 0, NULL);
+   gtk_tree_view_append_column(GTK_TREE_VIEW(SDG("main_cmds")), column);
 
    /* Load the (inlined) sd icon. */
    ico_pixbuf = gdk_pixbuf_new_from_inline (-1, sdico_inline, FALSE, NULL);
