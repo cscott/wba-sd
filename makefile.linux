@@ -60,7 +60,7 @@ TTY_FLAGS =
 # to give the library pathname.
 #
 # 5 Jan 2005:  Gcc 3.2.3 under Red Hat now requires libgpm.
-TTY_LIBS = -static -lcurses -lgpm
+TTY_LIBS = -static -lcurses #-lgpm
 
 SDLIB_OBJS = sdmain.o sdutil.o sdbasic.o sdinit.o \
              sdtables.o sdctable.o sdtop.o sdconcpt.o sdpreds.o \
@@ -72,19 +72,27 @@ HFILES = sd.h database.h paths.h mapcachefile.h sort.h \
 
 MAKEFILES = makefile.linux makefile.mingw makefile.mac makefile.solaris
 
+SD_OBJS = sdui-gtk.o
+
 SDTTY_OBJS = sdui-tty.o sdui-ttu.o
 
-SDTTY_LINK_OBJS = $(SDLIB_OBJS) $(SDTTY_OBJS)
+SDTTY_LINK_OBJS = $(SDTTY_OBJS) -L. -lsd
 
 MKCALLS_OBJS = mkcalls.o
 
-all: sdtty mkcalls sd_calls.dat
+all: sd sdtty mkcalls sd_calls.dat
 
 mkcalls: $(MKCALLS_OBJS)
 	$(CC) $(CFLAGS) -o $@ $(MKCALLS_OBJS)
 
-sdtty: $(SDLIB_OBJS) $(SDTTY_OBJS)
+libsd.a: $(SDLIB_OBJS)
+	$(AR) crs $@ $^
+
+sdtty: libsd.a $(SDTTY_OBJS)
 	$(CC) $(CFLAGS) -o $@ $(SDTTY_LINK_OBJS) $(TTY_LIBS)
+
+sd: libsd.a $(SD_OBJS)
+	$(CC) -o $@ $(SD_OBJS) -L. -lsd `pkg-config --cflags --libs libglade-2.0 libgnomeui-2.0`
 
 sd_calls.dat: sd_calls.txt mkcalls
 	./mkcalls ./sd_calls.txt
@@ -97,6 +105,8 @@ sd_calls.dat: sd_calls.txt mkcalls
 .cpp.o:
 	$(CC) $(CFLAGS) -c $<
 
+sdui-gtk.o: sdui-gtk.cpp sdui-ico.h
+	$(CC) $(CFLAGS) `pkg-config --cflags libglade-2.0 libgnomeui-2.0` -c $<
 sdui-ttu.o: sdui-ttu.cpp
 	$(CC) $(CFLAGS) $(TTY_FLAGS) -c $<
 
@@ -110,7 +120,10 @@ sdinit.cpp: mapcachefile.h sort.h
 
 mapcachefile.cpp: mapcachefile.h
 
-$(SDLIB_OBJS) $(SDTTY_OBJS): sd.h database.h paths.h
+$(SDLIB_OBJS) $(SD_OBJS) $(SDTTY_OBJS): sd.h database.h paths.h
+
+sdui-ico.h: sd.ico
+	gdk-pixbuf-csource --raw --name=sdico_inline $< > $@
 
 clean::
 	-$(RM) *.o sd sdtty mkcalls sd_calls.dat tags
