@@ -352,8 +352,8 @@ static void check_text_change(bool doing_escape)
       GtkTreeSelection *sel = gtk_tree_view_get_selection(main_cmds);
       GtkTreePath *path = gtk_tree_path_new_from_indices(nIndex, -1);
       gtk_tree_selection_select_path(sel, path);
-      gtk_tree_path_free(path);
       gtk_tree_view_scroll_to_cell(main_cmds, path, NULL, FALSE, 0., 0.);
+      gtk_tree_path_free(path);
       menu_moved = false;
    }
    else if (!szLocalString[0]) {
@@ -785,6 +785,13 @@ on_main_cmds_button_press_event(GtkWidget *widget, GdkEventButton *event,
       }
   return FALSE;
 }
+void
+on_main_cmds_row_activated(GtkTreeView *treeview, GtkTreePath *path,
+			   GtkTreeViewColumn *column, gpointer user_data) {
+    // 'click' the accept button.
+    on_main_accept_clicked(GTK_BUTTON(SDG("main_accept")), NULL);
+}
+
 gint
 on_key_snoop(GtkWidget *grab_widget, GdkEventKey *event, gpointer func_data) {
    GtkWidget *main_entry = SDG("main_entry");

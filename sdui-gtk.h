@@ -277,6 +277,11 @@ on_main_cmds_button_press_event        (GtkWidget       *widget,
                                         gpointer         user_data);
 
 void
+on_main_cmds_row_activated             (GtkTreeView     *treeview,
+                                        GtkTreePath     *path,
+                                        GtkTreeViewColumn *column,
+                                        gpointer         user_data);
+void
 on_main_accept_clicked                 (GtkButton       *button,
                                         gpointer         user_data);
 
