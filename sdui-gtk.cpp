@@ -1639,6 +1639,7 @@ static GdkColor cinit(guint16 red, guint16 green, guint16 blue) {
    GdkColor c = { 0, red, green, blue };
    return c;
 }
+
 void iofull::final_initialize()
 {
    GdkColor bg, fg;
@@ -1652,11 +1653,13 @@ void iofull::final_initialize()
       cinit(0xFFFF, 0x0000, 0xFFFF), // 6 - magenta
       cinit(0x0000, 0xFFFF, 0xFFFF), // 7 - cyan
    };
+   GdkPixmap *pixmap[8/*dancers*/*4/*directions*/+1/*phantom*/];
    PangoLayout *layout;
    PangoFontDescription *fontdesc;
    GdkGC *gc;
-   int i;
-   ui_options.use_escapes_for_drawing_people = 0;//2;
+   unsigned i;
+   ui_options.use_escapes_for_drawing_people =
+      (ui_options.no_graphics==0) ? 2 : 0;
 
    // Install the pointy triangles.
 
@@ -1664,7 +1667,7 @@ void iofull::final_initialize()
       ui_options.direc = "?\020?\021????\036?\037?????";
 
    // Build appropriate checker images.
-   //   allocate all images
+   //   build empty space pixbufs
    icons[SPACE_FULL] = gdk_pixbuf_new(GDK_COLORSPACE_RGB, TRUE, 8,
 				      BMP_PERSON_SIZE, BMP_PERSON_SIZE);
    gdk_pixbuf_fill(icons[SPACE_FULL], ui_options.reverse_video ?
@@ -1673,11 +1676,9 @@ void iofull::final_initialize()
    for(i=0; i<3; i++) // create 1/4, 1/2, 3/4 spaces
       icons[i] = gdk_pixbuf_new_subpixbuf
 	 (icons[SPACE_FULL], 0, 0, (i+1)*BMP_PERSON_SIZE/4, BMP_PERSON_SIZE);
-   for(i=PHANTOM; i < (PHANTOM+9); i++)
-      icons[i] = gdk_pixbuf_copy(icons[SPACE_FULL]);
    //    create correct color translation table.
-   bg.red = bg.green = bg.blue = (ui_options.reverse_video ? 0xFFFF : 0x0000);
-   fg.red = fg.green = fg.blue = (ui_options.reverse_video ? 0x0000 : 0xFFFF);
+   bg.red = bg.green = bg.blue = (ui_options.reverse_video ? 0x0000 : 0xFFFF);
+   fg.red = fg.green = fg.blue = (ui_options.reverse_video ? 0xFFFF : 0x0000);
    if (ui_options.no_intensify) {
       bg.red/=2; bg.green/=2; bg.blue/=2;
       fg.red/=2; fg.green/=2; fg.blue/=2;
@@ -1685,22 +1686,31 @@ void iofull::final_initialize()
    if (ui_options.color_scheme == no_color)
       for (i=0; i<8; i++)
 	 icon_color[i] = fg;
-   //    draw icons
-   gc = gdk_gc_new(GDK_DRAWABLE(icons[SPACE_FULL]));
+   //    initialize graphics context
+   gc = gdk_gc_new(GDK_DRAWABLE(SDG("main_transcript")->window));
    gdk_gc_set_rgb_bg_color(gc, &bg);
    gdk_gc_set_fill(gc, GDK_SOLID);
    gdk_gc_set_line_attributes
       (gc, 1, GDK_LINE_SOLID, GDK_CAP_ROUND, GDK_JOIN_ROUND);
+   //    make pixmaps, filled w/ background color.
+   gdk_gc_set_rgb_fg_color(gc, &bg);
+   for (i=0; i<sizeof(pixmap)/sizeof(*pixmap); i++) {
+      pixmap[i]=gdk_pixmap_new
+	 (GDK_DRAWABLE(SDG("main_transcript")->window),
+	  BMP_PERSON_SIZE, BMP_PERSON_SIZE, gdk_visual_get_best_depth());
+      gdk_draw_rectangle
+	 (GDK_DRAWABLE(pixmap[i]), gc, TRUE,
+	  0, 0, BMP_PERSON_SIZE, BMP_PERSON_SIZE);
+   }
+   //    draw icons
    //      make 8 dancer images in four directions.
    layout = gtk_widget_create_pango_layout(SDG("main_transcript"), NULL);
-   //fontdesc = pango_layout_get_font_description(layout);
    fontdesc=pango_font_description_new();
-   pango_font_description_set_absolute_size(fontdesc, PANGO_SCALE*9);
+   pango_font_description_set_absolute_size(fontdesc, PANGO_SCALE*8);
    pango_layout_set_font_description(layout, fontdesc);
    pango_font_description_free(fontdesc);
    for (i=0; i<8; i++) {
-      GdkPixbuf *p = icons[DANCER_START+i];
-      GdkDrawable *d = GDK_DRAWABLE(p);
+      GdkDrawable *d = GDK_DRAWABLE(pixmap[i]);
       char dancer_num = '1' + (i/2);
       int is_boy = !(i&1);
       // draw square/circle outline.
@@ -1715,24 +1725,41 @@ void iofull::final_initialize()
       // draw dancer # cutout
       gdk_gc_set_rgb_fg_color(gc, &bg);
       gdk_draw_rectangle(d, gc, TRUE, 16, 13, 11, 11);
-      // rotate.
+      // rotate (creating pixmaps in the process)
+      icons[DANCER_START+i] = gdk_pixbuf_get_from_drawable
+	 (NULL, GDK_DRAWABLE(pixmap[i]), NULL, 0, 0, 0, 0, -1, -1);
       for (int j=1; j<4; j++)
 	 icons[DANCER_START+i+(8*j)] =
-	    gdk_pixbuf_rotate_simple(p, (GdkPixbufRotation) (90*j));
+	    gdk_pixbuf_rotate_simple(icons[DANCER_START+i],
+				     (GdkPixbufRotation) (90*j));
+      // render back to drawable
+      for (int j=0; j<4; j++)
+	 gdk_draw_pixbuf(GDK_DRAWABLE(pixmap[i+(8*j)]), gc,
+			 icons[DANCER_START+i+(8*j)], 0, 0, 0, 0, -1, -1,
+			 GDK_RGB_DITHER_MAX, 0, 0);
       // draw dancer #s (should be width=7, height=9)
       pango_layout_set_text(layout, &dancer_num, 1);
       for (int j=0; j<4; j++) {
 	 int x[4] = { 16+2, 13+2, 9+2, 13+2 };
-	 int y[4] = { 13+1, 9+1, 13+1, 16+1 };
-	 d = GDK_DRAWABLE(icons[DANCER_START+i+(8*j)]);
+	 int y[4] = { 13, 9, 13, 16 };
+	 d = GDK_DRAWABLE(pixmap[i+(8*j)]);
 	 gdk_draw_layout_with_colors(d, gc, x[j], y[j], layout, &fg, &bg);
       }
+      // and push back into a pixbuf.
+      for (int j=0; j<4; j++)
+	 gdk_pixbuf_get_from_drawable
+	    (icons[DANCER_START+i+(8*j)], GDK_DRAWABLE(pixmap[i+(8*j)]), NULL,
+	     0, 0, 0, 0, -1, -1);
    }
    //      make phantom image.
    gdk_gc_set_rgb_fg_color(gc, &fg);
-   gdk_draw_arc(GDK_DRAWABLE(icons[PHANTOM]), gc, TRUE,
+   gdk_draw_arc(GDK_DRAWABLE(pixmap[32]), gc, TRUE,
 		16, 16, 4, 4, 0, 360*64);
+   icons[PHANTOM] = gdk_pixbuf_get_from_drawable
+      (NULL, GDK_DRAWABLE(pixmap[32]), NULL, 0, 0, 0, 0, -1, -1);
    // free
+   for (i=0; i<sizeof(pixmap)/sizeof(*pixmap); i++)
+      gdk_pixmap_unref(pixmap[i]);
    g_object_unref(layout);
    gdk_gc_unref(gc);
 
@@ -2243,35 +2270,69 @@ uint32 iofull::get_number_fields(int nnumbers, bool forbid_zero)
 
 void iofull::add_new_line(char the_line[], uint32 drawing_picture)
 {
-   char buf[3*strlen(the_line)+2], *p;
+   char buf[3*strlen(the_line)+2], *cp;
+   bool in_picture, squeeze_newline;
    GtkTextIter iter;
    erase_questionable_stuff();
+   // decode the 'drawing_picture' argument.
+   in_picture = drawing_picture & 1;
+   squeeze_newline = drawing_picture & 2;
    // translate the dos-437 triangles to utf-8-encoded unicode triangles.
    // see http://www.cl.cam.ac.uk/~mgk25/unicode.html#utf-8 for utf-8 info
-   for (p=buf; *the_line; the_line++)
-      switch(*the_line) {
+   for (cp=buf; *the_line; the_line++)
+      switch((ui_options.no_graphics<2) ? (*the_line) : '\0') {
       case '\020': // right, unicode 25B6
-	 *p++ = 0xE2; *p++ = 0x96; *p++ = 0xB6; break;
+	 *cp++ = 0xE2; *cp++ = 0x96; *cp++ = 0xB6; break;
       case '\021': // left,  unicode 25C0
-	 *p++ = 0xE2; *p++ = 0x97; *p++ = 0x80; break;
+	 *cp++ = 0xE2; *cp++ = 0x97; *cp++ = 0x80; break;
       case '\036': // up,    unicode 25B2
-	 *p++ = 0xE2; *p++ = 0x96; *p++ = 0xB2; break;
+	 *cp++ = 0xE2; *cp++ = 0x96; *cp++ = 0xB2; break;
       case '\037': // down,  unicode 25Bc
-	 *p++ = 0xE2; *p++ = 0x96; *p++ = 0xBC; break;
+	 *cp++ = 0xE2; *cp++ = 0x96; *cp++ = 0xBC; break;
       default:
-	 *p++ = *the_line; break;
+	 *cp++ = *the_line; break;
       }
-   *p++='\n'; // add a newline.
-   *p=0;    // end the string.
+   *cp++='\n'; // add a newline.
+   *cp=0;    // end the string.
 
-   // we ought to do something fancier if 'drawing_picture'
-   // but for now we're just going to ignore that parameter.
+   // XXX we currently ignore 'squeeze newline'
+
    gtk_text_buffer_get_end_iter(main_buffer, &iter);
-   if (!drawing_picture)
+   if (!in_picture)
       gtk_text_buffer_insert(main_buffer, &iter, buf, -1);
-   else
+   else if (ui_options.no_graphics != 0)
       gtk_text_buffer_insert_with_tags_by_name
 	 (main_buffer, &iter, buf, -1, "picture", NULL);
+   else for (cp=buf; *cp; cp++) { // use fancy checkers.
+      int personidx, persondir;
+      GdkPixbuf *p=NULL;
+      switch(*cp) {
+      case '\014': /* a phantom! */
+	 p = icons[PHANTOM]; break;
+      case '\013': /* a dancer! */
+	 personidx = (*++cp) & 7;
+	 persondir = 3-((*++cp) & 0x3);
+	 p = icons[DANCER_START+personidx+8*persondir];
+	 break;
+      case '6': /* one person-width */
+	 p = icons[SPACE_FULL]; break;
+      case '5': /* half a person-width */
+      case '8': /* ditto; for checkers (one space if ASCII) */
+	 p = icons[SPACE_HALF]; break;
+      case '9': /* three-quarters a person-width */
+	 p = icons[SPACE_3QTR]; break;
+	 break;
+      case ' ': /* two blanks is the inter-person spacing */
+	 continue; // we currently squeeze people tightly together.
+      default: /* this should be '\n' */
+	 /* (maybe do something different for squeeze_newline?) */
+	 gtk_text_buffer_insert(main_buffer, &iter, cp, 1);
+	 break;
+      }
+      if (p)
+	 gtk_text_buffer_insert_pixbuf(main_buffer, &iter, p);
+      gtk_text_buffer_get_end_iter(main_buffer, &iter); // reset iterator
+   }
 }
 
 
