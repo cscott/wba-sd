@@ -1636,12 +1636,12 @@ void iofull::final_initialize()
 {
    ui_options.use_escapes_for_drawing_people = 0;//2;
 
-#if 0
    // Install the pointy triangles.
 
    if (ui_options.no_graphics < 2)
       ui_options.direc = "?\020?\021????\036?\037?????";
 
+#if 0
    HANDLE hRes = LoadResource(GLOBhInstance,
                               FindResource(GLOBhInstance,
                                            MAKEINTRESOURCE(IDB_BITMAP1), RT_BITMAP));
@@ -2292,13 +2292,31 @@ uint32 iofull::get_number_fields(int nnumbers, bool forbid_zero)
 
 void iofull::add_new_line(char the_line[], uint32 drawing_picture)
 {
+   char buf[3*strlen(the_line)+2], *p;
    GtkTextIter iter;
    erase_questionable_stuff();
+   // translate the dos-437 triangles to utf-8-encoded unicode triangles.
+   // see http://www.cl.cam.ac.uk/~mgk25/unicode.html#utf-8 for utf-8 info
+   for (p=buf; *the_line; the_line++)
+      switch(*the_line) {
+      case '\020': // right, unicode 25B6
+	 *p++ = 0xE2; *p++ = 0x96; *p++ = 0xB6; break;
+      case '\021': // left,  unicode 25C0
+	 *p++ = 0xE2; *p++ = 0x97; *p++ = 0x80; break;
+      case '\036': // up,    unicode 25B2
+	 *p++ = 0xE2; *p++ = 0x96; *p++ = 0xB2; break;
+      case '\037': // down,  unicode 25Bc
+	 *p++ = 0xE2; *p++ = 0x96; *p++ = 0xBC; break;
+      default:
+	 *p++ = *the_line; break;
+      }
+   *p++='\n'; // add a newline.
+   *p=0;    // end the string.
+
    // we ought to do something fancier if 'drawing_picture'
    // but for now we're just going to ignore that parameter.
    gtk_text_buffer_get_end_iter(main_buffer, &iter);
-   gtk_text_buffer_insert(main_buffer, &iter, the_line, -1);
-   gtk_text_buffer_insert(main_buffer, &iter, "\n", -1);
+   gtk_text_buffer_insert(main_buffer, &iter, buf, -1);
 }
 
 
