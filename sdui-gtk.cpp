@@ -35,6 +35,7 @@
 #include <assert.h>
 #include <gnome.h>
 #include <glade/glade.h>
+#include <glib/gprintf.h>
 #include <librsvg/rsvg.h>
 
 #include "sd.h"
@@ -1636,30 +1637,42 @@ typedef enum {
     SPACE_QTR, SPACE_HALF, SPACE_3QTR, SPACE_FULL, PHANTOM, DANCER_START
 } special_img_t;
 static GdkPixbuf *icons[8/*dancers*/*4/*directions*/+4/*spaces*/+1/*phantom*/];
-static GdkColor cinit(guint16 red, guint16 green, guint16 blue) {
-   GdkColor c = { 0, red, green, blue };
-   return c;
-}
+
+GdkPixbuf *make_svg_icon(const gchar *xml_template, ...) {
+   RsvgHandle *handle;
+   GdkPixbuf *result;
+   GError *err;
+   va_list ap;
+   gchar *buf;
+   int n;
+   va_start(ap, xml_template);
+   n = g_vasprintf(&buf, xml_template, ap);
+   va_end(ap);
+   handle = rsvg_handle_new();
+   if (rsvg_handle_write(handle, (guchar*)buf, n, &err) &&
+       rsvg_handle_close(handle, &err)) {
+      result = rsvg_handle_get_pixbuf(handle);
+      rsvg_handle_free(handle);
+      return result;
+   }
+   g_error("%s", err->message);
+   return NULL; // unreachable.
+}	   
 
 void iofull::final_initialize()
 {
-   GdkColor bg, fg;
-   GdkColor icon_color[8] = { // The internal color scheme is:
-      cinit(0x0000, 0x0000, 0x0000), // 0 - not used
-      cinit(0x7FFF, 0x7FFF, 0x0000), // 1 - substitute yellow
-      cinit(0xFFFF, 0x0000, 0x0000), // 2 - red
-      cinit(0x0000, 0xFFFF, 0x0000), // 3 - green
-      cinit(0xFFFF, 0xFFFF, 0x0000), // 4 - yellow
-      cinit(0x0000, 0x0000, 0xFFFF), // 5 - blue
-      cinit(0xFFFF, 0x0000, 0xFFFF), // 6 - magenta
-      cinit(0x0000, 0xFFFF, 0xFFFF), // 7 - cyan
+   char *bg="ffffff", *fg="000000";
+   char *icon_color[8] = { // The internal color scheme is:
+      "112233", // 0 - not used
+      "808000", // 1 - substitute yellow
+      "ff0000", // 2 - red
+      "00ff00", // 3 - green
+      "ffff00", // 4 - yellow
+      "0000ff", // 5 - blue
+      "ff00ff", // 6 - magenta
+      "00ffff", // 7 - cyan
    };
-   RsvgHandle *handle;
-   GdkPixmap *pixmap[8/*dancers*/*4/*directions*/];
-   PangoLayout *layout;
-   PangoFontDescription *fontdesc;
-   GdkGC *gc;
-   unsigned i;
+   unsigned i, j;
    ui_options.use_escapes_for_drawing_people =
       (ui_options.no_graphics==0) ? 2 : 0;
 
@@ -1679,97 +1692,26 @@ void iofull::final_initialize()
       icons[i] = gdk_pixbuf_new_subpixbuf
 	 (icons[SPACE_FULL], 0, 0, (i+1)*BMP_PERSON_SIZE/4, BMP_PERSON_SIZE);
    //    create correct color translation table.
-   bg.red = bg.green = bg.blue = (ui_options.reverse_video ? 0x0000 : 0xFFFF);
-   fg.red = fg.green = fg.blue = (ui_options.reverse_video ? 0xFFFF : 0x0000);
-   if (ui_options.no_intensify) {
-      bg.red/=2; bg.green/=2; bg.blue/=2;
-      fg.red/=2; fg.green/=2; fg.blue/=2;
+   if (ui_options.no_intensify)
+      bg = "808080";
+   if (ui_options.reverse_video) {
+      char *tmp = fg; fg=bg; bg=tmp;
    }
    if (ui_options.color_scheme == no_color)
       for (i=0; i<8; i++)
 	 icon_color[i] = fg;
-   //    initialize graphics context
-   gc = gdk_gc_new(GDK_DRAWABLE(SDG("main_transcript")->window));
-   gdk_gc_set_rgb_bg_color(gc, &bg);
-   gdk_gc_set_fill(gc, GDK_SOLID);
-   gdk_gc_set_line_attributes
-      (gc, 1, GDK_LINE_SOLID, GDK_CAP_ROUND, GDK_JOIN_ROUND);
-   //    make pixmaps, filled w/ background color.
-   gdk_gc_set_rgb_fg_color(gc, &bg);
-   for (i=0; i<sizeof(pixmap)/sizeof(*pixmap); i++) {
-      pixmap[i]=gdk_pixmap_new
-	 (GDK_DRAWABLE(SDG("main_transcript")->window),
-	  BMP_PERSON_SIZE, BMP_PERSON_SIZE, gdk_visual_get_best_depth());
-      gdk_draw_rectangle
-	 (GDK_DRAWABLE(pixmap[i]), gc, TRUE,
-	  0, 0, BMP_PERSON_SIZE, BMP_PERSON_SIZE);
-   }
-   //    draw icons
-   //      make 8 dancer images in four directions.
-   layout = gtk_widget_create_pango_layout(SDG("main_transcript"), NULL);
-   fontdesc=pango_font_description_new();
-   pango_font_description_set_absolute_size(fontdesc, PANGO_SCALE*8);
-   pango_layout_set_font_description(layout, fontdesc);
-   pango_font_description_free(fontdesc);
-   for (i=0; i<8; i++) {
-      GdkDrawable *d = GDK_DRAWABLE(pixmap[i]);
-      char dancer_num = '1' + (i/2);
-      int is_boy = !(i&1);
-      // draw square/circle outline.
-      gdk_gc_set_rgb_fg_color(gc, &icon_color[color_index_list[i]]);
-      if (is_boy) {
-	 gdk_draw_rectangle(d, gc, TRUE, 9, 6, 25, 25);
-	 gdk_draw_rectangle(d, gc, TRUE, 2, 14, 9, 9);
-      } else {
-	 gdk_draw_arc(d, gc, TRUE, 9, 6, 25, 25, 0, 360*64);
-	 gdk_draw_arc(d, gc, TRUE, 2, 13, 11, 11, 0, 360*64);
-      }
-      // draw dancer # cutout
-      gdk_gc_set_rgb_fg_color(gc, &bg);
-      gdk_draw_rectangle(d, gc, TRUE, 16, 13, 11, 11);
-      // rotate (creating pixmaps in the process)
-      icons[DANCER_START+i] = gdk_pixbuf_get_from_drawable
-	 (NULL, GDK_DRAWABLE(pixmap[i]), NULL, 0, 0, 0, 0, -1, -1);
-      for (int j=1; j<4; j++)
-	 icons[DANCER_START+i+(8*j)] =
-	    gdk_pixbuf_rotate_simple(icons[DANCER_START+i],
-				     (GdkPixbufRotation) (90*j));
-      // render back to drawable
-      for (int j=0; j<4; j++)
-	 gdk_draw_pixbuf(GDK_DRAWABLE(pixmap[i+(8*j)]), gc,
-			 icons[DANCER_START+i+(8*j)], 0, 0, 0, 0, -1, -1,
-			 GDK_RGB_DITHER_MAX, 0, 0);
-      // draw dancer #s (should be width=7, height=9)
-      pango_layout_set_text(layout, &dancer_num, 1);
-      for (int j=0; j<4; j++) {
-	 int x[4] = { 16+2, 13+2, 9+2, 13+2 };
-	 int y[4] = { 13, 9, 13, 16 };
-	 d = GDK_DRAWABLE(pixmap[i+(8*j)]);
-	 gdk_draw_layout_with_colors(d, gc, x[j], y[j], layout, &fg, &bg);
-      }
-      // and push back into a pixbuf.
-      for (int j=0; j<4; j++)
-	 gdk_pixbuf_get_from_drawable
-	    (icons[DANCER_START+i+(8*j)], GDK_DRAWABLE(pixmap[i+(8*j)]), NULL,
-	     0, 0, 0, 0, -1, -1);
-   }
-   //      make phantom image.
-   handle = rsvg_handle_new();
-   char buf[strlen(sd_phantom_svg)+5];
-   snprintf(buf, sizeof(buf), sd_phantom_svg,
-	    ui_options.reverse_video ? "FFFFFF" : "000000");
-   rsvg_handle_write(handle, (unsigned char*)buf, strlen(buf), NULL);
-   rsvg_handle_close(handle, NULL);
-   icons[PHANTOM] = rsvg_handle_get_pixbuf(handle);
-   rsvg_handle_free(handle);
-   // free
-   for (i=0; i<sizeof(pixmap)/sizeof(*pixmap); i++)
-      gdk_pixmap_unref(pixmap[i]);
-   g_object_unref(layout);
-   gdk_gc_unref(gc);
+   //    make phantom icon
+   icons[PHANTOM] = make_svg_icon(sd_phantom_svg, fg);
+   //    make dancer icons.
+   for (i=0; i<8; i++)
+      for (j=0; j<4; j++)
+	 icons[DANCER_START+i+(8*j)] = make_svg_icon
+	    ( (i&1) ? sd_girl_svg : sd_boy_svg,
+	      90*j, icon_color[color_index_list[i]], fg, fg, 90*j, 1+(i/2));
 
    // Initialize the display window linked list.
    gtk_text_buffer_set_text(main_buffer, "", -1);
+   // XX setup text buffer foreground/background colors.
 }
 
 
