@@ -71,6 +71,12 @@ mkcalls: $(MKCALLS_OBJS)
 sdtty: $(SDLIB_OBJS) $(SDTTY_OBJS) sdttyres.o
 	$(CC) -mconsole -o $@ $(SDTTY_OBJS) sdttyres.o $(SDLIB_OBJS) $(SDTTY_LIBS)
 	strip sdtty.exe.so
+	# fixup the generated script file; should invoke with
+	#   "wineconsole --backend=user"
+	echo "#!/bin/sh" > $@
+	echo exec wineconsole --backend=user sdtty.exe.so '"$$@"' >> $@
+	chmod a+rx $@
+	
 
 sd: $(SDLIB_OBJS) $(SD_OBJS) sdres.o
 	$(CC) -mwindows -o $@ $(SD_OBJS) sdres.o $(SDLIB_OBJS) $(SD_LIBS)

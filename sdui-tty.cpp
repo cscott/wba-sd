@@ -97,6 +97,11 @@ int main(int argc, char *argv[])
 
    ui_options.reverse_video = true;
    ui_options.pastel_color = true;
+#ifdef __WINE__
+   // linux fonts typically don't have the "pointy-triangles", so don't default
+   // to using them when compiling the "wine console" version of sdtty
+   ui_options.no_graphics = 2;
+#endif
 
    // Initialize all the callbacks that sdlib will need.
    iofull ggg;
