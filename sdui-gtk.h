@@ -18,7 +18,7 @@ on_file_save_as_activate               (GtkMenuItem     *menuitem,
                                         gpointer         user_data);
 
 void
-on_choose_font_for_printing_activate   (GtkMenuItem     *menuitem,
+on_file_choose_font_activate           (GtkMenuItem     *menuitem,
                                         gpointer         user_data);
 
 void

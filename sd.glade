@@ -834,7 +834,7 @@
 		    <widget class="GtkMenu" id="file1_menu">
 
 		      <child>
-			<widget class="GtkImageMenuItem" id="new1">
+			<widget class="GtkImageMenuItem" id="file_new">
 			  <property name="visible">True</property>
 			  <property name="stock_item">GNOMEUIINFO_MENU_NEW_ITEM</property>
 			  <property name="label" translatable="yes">_New</property>
@@ -844,7 +844,7 @@
 		      </child>
 
 		      <child>
-			<widget class="GtkImageMenuItem" id="open1">
+			<widget class="GtkImageMenuItem" id="file_open">
 			  <property name="visible">True</property>
 			  <property name="stock_item">GNOMEUIINFO_MENU_OPEN_ITEM</property>
 			  <signal name="activate" handler="on_file_open_activate" last_modification_time="Mon, 21 Mar 2005 02:19:32 GMT"/>
@@ -852,7 +852,7 @@
 		      </child>
 
 		      <child>
-			<widget class="GtkImageMenuItem" id="save1">
+			<widget class="GtkImageMenuItem" id="file_save">
 			  <property name="visible">True</property>
 			  <property name="stock_item">GNOMEUIINFO_MENU_SAVE_ITEM</property>
 			  <signal name="activate" handler="on_file_save_activate" last_modification_time="Mon, 21 Mar 2005 02:19:44 GMT"/>
@@ -860,7 +860,7 @@
 		      </child>
 
 		      <child>
-			<widget class="GtkImageMenuItem" id="save_as1">
+			<widget class="GtkImageMenuItem" id="file_save_as">
 			  <property name="visible">True</property>
 			  <property name="stock_item">GNOMEUIINFO_MENU_SAVE_AS_ITEM</property>
 			  <signal name="activate" handler="on_file_save_as_activate" last_modification_time="Mon, 21 Mar 2005 02:19:57 GMT"/>
@@ -874,12 +874,12 @@
 		      </child>
 
 		      <child>
-			<widget class="GtkImageMenuItem" id="choose_font_for_printing">
+			<widget class="GtkImageMenuItem" id="file_choose_font">
 			  <property name="visible">True</property>
 			  <property name="tooltip" translatable="yes">Customize the font that will be used later if you print the file.</property>
 			  <property name="label" translatable="yes">Choose _font for printing</property>
 			  <property name="use_underline">True</property>
-			  <signal name="activate" handler="on_choose_font_for_printing_activate" last_modification_time="Mon, 21 Mar 2005 03:31:21 GMT"/>
+			  <signal name="activate" handler="on_file_choose_font_activate" last_modification_time="Mon, 21 Mar 2005 03:31:21 GMT"/>
 
 			  <child internal-child="image">
 			    <widget class="GtkImage" id="image8">
@@ -896,7 +896,7 @@
 		      </child>
 
 		      <child>
-			<widget class="GtkImageMenuItem" id="print">
+			<widget class="GtkImageMenuItem" id="file_print">
 			  <property name="visible">True</property>
 			  <property name="stock_item">GNOMEUIINFO_MENU_PRINT_ITEM</property>
 			  <signal name="activate" handler="on_file_print_activate" last_modification_time="Mon, 21 Mar 2005 02:21:24 GMT"/>
@@ -940,7 +940,7 @@
 		    <widget class="GtkMenu" id="edit1_menu">
 
 		      <child>
-			<widget class="GtkImageMenuItem" id="cut1">
+			<widget class="GtkImageMenuItem" id="edit_cut">
 			  <property name="visible">True</property>
 			  <property name="stock_item">GNOMEUIINFO_MENU_CUT_ITEM</property>
 			  <signal name="activate" handler="on_edit_cut_activate" last_modification_time="Mon, 21 Mar 2005 02:30:20 GMT"/>
@@ -948,7 +948,7 @@
 		      </child>
 
 		      <child>
-			<widget class="GtkImageMenuItem" id="copy1">
+			<widget class="GtkImageMenuItem" id="edit_copy">
 			  <property name="visible">True</property>
 			  <property name="stock_item">GNOMEUIINFO_MENU_COPY_ITEM</property>
 			  <signal name="activate" handler="on_edit_copy_activate" last_modification_time="Mon, 21 Mar 2005 02:30:29 GMT"/>
@@ -956,7 +956,7 @@
 		      </child>
 
 		      <child>
-			<widget class="GtkImageMenuItem" id="paste1">
+			<widget class="GtkImageMenuItem" id="edit_paste">
 			  <property name="visible">True</property>
 			  <property name="stock_item">GNOMEUIINFO_MENU_PASTE_ITEM</property>
 			  <signal name="activate" handler="on_edit_paste_activate" last_modification_time="Mon, 21 Mar 2005 02:30:38 GMT"/>
@@ -964,7 +964,7 @@
 		      </child>
 
 		      <child>
-			<widget class="GtkImageMenuItem" id="clear1">
+			<widget class="GtkImageMenuItem" id="edit_clear">
 			  <property name="visible">True</property>
 			  <property name="stock_item">GNOMEUIINFO_MENU_CLEAR_ITEM</property>
 			  <signal name="activate" handler="on_edit_clear_activate" last_modification_time="Mon, 21 Mar 2005 02:30:49 GMT"/>

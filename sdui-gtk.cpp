@@ -657,6 +657,15 @@ int main(int argc, char **argv) {
       (G_OBJECT(gtk_tree_view_get_selection(startup_list)),
        "changed", G_CALLBACK(on_startup_list_selection_changed), NULL);
 
+   /* disable stuff we haven't implemented yet */
+   char *unimpl[] = { "file_new", "file_open", "file_save", "file_save_as",
+		      "toolbutton_new", "toolbutton_open", "toolbutton_save",
+		      "toolbutton_print",
+		      "file_choose_font", "file_print", "file_print_any",
+		      "edit_cut", "edit_copy", "edit_paste", "edit_clear" };
+   for (unsigned i=0; i<sizeof(unimpl)/sizeof(*unimpl); i++)
+       gtk_widget_set_sensitive(SDG(unimpl[i]), FALSE);
+
    // Run the Sd program.  We'll have parsed the Sd-appropriate command-line
    // arguments into 'fake_args'.
 
@@ -999,13 +1008,15 @@ static void do_menu(int id) {
 void handler(GtkMenuItem *menuitem, gpointer user_data) { \
    do_menu(command_index); \
 }
-MENU(on_choose_font_for_printing_activate, ID_FILE_CHOOSE_FONT);
+MENU(on_file_choose_font_activate, ID_FILE_CHOOSE_FONT);
 MENU(on_file_print_activate, ID_FILE_PRINTTHIS);
 MENU(on_file_print_any_activate, ID_FILE_PRINTFILE);
 MENU(on_file_quit_activate, ID_FILE_EXIT);
-MENU(on_edit_cut_activate, ID_COMMAND_CUT_TEXT);
-MENU(on_edit_copy_activate, ID_COMMAND_COPY_TEXT);
+#if 0
+MENU(on_edit_cut_activate, ID_COMMAND_CUT_TEXT);// xxx doesn't do anything
+MENU(on_edit_copy_activate, ID_COMMAND_COPY_TEXT);// xxx doesn't do anything
 //MENU(on_edit_clear_activate, ID_COMMAND_CLEAR_TEXT);
+#endif
 MENU(on_cut_one_call_activate, ID_COMMAND_CLIPBOARD_CUT);
 MENU(on_paste_one_call_activate, ID_COMMAND_CLIPBOARD_PASTE_ONE);
 MENU(on_paste_all_calls_activate, ID_COMMAND_CLIPBOARD_PASTE_ALL);
@@ -2423,8 +2434,43 @@ void iofull::terminate(int code)
 
    if (ico_pixbuf)
       g_object_unref(ico_pixbuf);
-   // XXX free the bitmap?
+   for (unsigned i=0; i<sizeof(icons)/sizeof(*icons); i++)
+       if (icons[i])
+	   g_object_unref(icons[i]);
 
    exit(code);
 }
 /// 3210
+void
+on_file_new_activate(GtkMenuItem *menuitem, gpointer user_data) {
+    g_warning("Unimplemented");
+}
+void
+on_file_open_activate(GtkMenuItem *menuitem, gpointer user_data) {
+    g_warning("Unimplemented");
+}
+void
+on_file_save_activate(GtkMenuItem *menuitem, gpointer user_data) {
+    g_warning("Unimplemented");
+}
+void
+on_file_save_as_activate(GtkMenuItem *menuitem, gpointer user_data) {
+    g_warning("Unimplemented");
+}
+void
+on_edit_cut_activate(GtkMenuItem *menuitem, gpointer user_data) {
+    g_warning("Unimplemented");
+}
+void
+on_edit_copy_activate(GtkMenuItem *menuitem, gpointer user_data) {
+    g_warning("Unimplemented");
+}
+void
+on_edit_paste_activate(GtkMenuItem *menuitem, gpointer user_data) {
+    g_warning("Unimplemented");
+}
+void
+on_edit_clear_activate(GtkMenuItem *menuitem, gpointer user_data) {
+    g_warning("Unimplemented");
+}
+
