@@ -17,6 +17,7 @@ DEFS = -Wall -Wno-switch -Wno-uninitialized -Wno-char-subscripts
 # need to choose different options, typically "-g", for debugging.
 # Consult your system, compiler, and debugger vendor for further information.
 CDEBUGFLAGS = -O4
+CDEBUGFLAGS = -g
 
 CFLAGS =$(CDEBUGFLAGS) $(DEFS)
 

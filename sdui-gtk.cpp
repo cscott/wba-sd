@@ -48,8 +48,10 @@ extern "C" {
 static GladeXML *sd_xml;
 static GtkWidget *window_startup, *window_main, *window_font, *window_text;
 static GdkPixbuf *ico_pixbuf;
+static GtkTextBuffer *main_buffer;
 #define SDG(widget_name) (glade_xml_get_widget(sd_xml, (widget_name)))
 #define gtk_update() while (gtk_events_pending ()) gtk_main_iteration ()
+#define QUESTION_MARK "questionable_stuff_to_erase"
 
 // default window size.
 static int window_size_args[4] = {-1, -1, -1, -1};
@@ -67,18 +69,6 @@ static int do_maximize = 0;
 // do we want to override the window size?
 static char *window_size_str = NULL;
 
-#define DISPLAY_LINE_LENGTH 90
-
-struct DisplayType {
-   char Line [DISPLAY_LINE_LENGTH];
-   int in_picture;
-   int Height;
-   int DeltaToNext;
-   DisplayType *Next;
-   DisplayType *Prev;
-};
-
-
 #define ui_undefined -999
 
 static char szResolveWndTitle [MAX_TEXT_LINE_LENGTH];
@@ -89,8 +79,6 @@ static bool InPopup = false;
 static bool WaitingForCommand = false;
 static int nLastOne;
 static uims_reply MenuKind;
-static DisplayType *DisplayRoot = NULL;
-static DisplayType *CurDisplay = NULL;
 
 // This is the last title sent by the main program.  We add stuff to it.
 static gchar main_title[MAX_TEXT_LINE_LENGTH];
@@ -124,7 +112,30 @@ static void UpdateStatusBar(const gchar *text)
    gnome_appbar_set_status(GNOME_APPBAR(SDG("main_appbar")), buf);
    gtk_update();
 }
-/// 259
+
+
+static void erase_questionable_stuff()
+{
+   GtkTextMark *mark;
+   GtkTextIter iter1, iter2;
+   mark = gtk_text_buffer_get_mark(main_buffer, QUESTION_MARK);
+   if (!mark) return; // no questionable stuff.
+   gtk_text_buffer_get_iter_at_mark(main_buffer, &iter1, mark);
+   gtk_text_buffer_get_end_iter(main_buffer, &iter2);
+   gtk_text_buffer_delete(main_buffer, &iter1, &iter2);
+   gtk_text_buffer_delete_mark(main_buffer, mark);
+}
+
+
+void iofull::show_match()
+{
+   char szLocalString[MAX_TEXT_LINE_LENGTH];
+   snprintf(szLocalString, sizeof(szLocalString),
+	    "%s%s%s", GLOB_match.indent ? "   " : "", GLOB_user_input,
+	    GLOB_full_extension);
+   gg->add_new_line(szLocalString, 0);
+}
+/// 326
 /// 838
 // Size of the square pixel array in the bitmap for one person.
 // The bitmap is exactly 8 of these wide and 4 of them high.
@@ -345,11 +356,11 @@ int main(int argc, char **argv) {
    window_text = SDG("dialog_text");
    window_font = SDG("dialog_font");
 
-   /* hide the progress bar (initially) */
+   /* Hide the progress bar (initially) */
    gtk_widget_hide(GTK_WIDGET(gnome_appbar_get_progress
 			      (GNOME_APPBAR(SDG("main_appbar")))));
 
-   /* set up the various treeview widgets */
+   /* Set up the various treeview widgets */
    startup_list = GTK_TREE_VIEW(SDG("startup_list"));
    renderer = gtk_cell_renderer_text_new();
    column = gtk_tree_view_column_new_with_attributes("Level/Session",renderer,
@@ -358,6 +369,10 @@ int main(int argc, char **argv) {
    column = gtk_tree_view_column_new_with_attributes("Commands", renderer,
 						     "text", 0, NULL);
    gtk_tree_view_append_column(GTK_TREE_VIEW(SDG("main_cmds")), column);
+
+   /* Set up the transcript buffer */
+   main_buffer = gtk_text_buffer_new(NULL);
+   gtk_text_view_set_buffer(GTK_TEXT_VIEW(SDG("main_transcript")),main_buffer);
 
    /* Load the (inlined) sd icon. */
    ico_pixbuf = gdk_pixbuf_new_from_inline (-1, sdico_inline, FALSE, NULL);
@@ -480,16 +495,22 @@ static void about_open_url(GtkAboutDialog *about,
 
 /// 1375
 
-
-// iofull stubs.
-static void Update_text_display() { assert(0); }
-static void erase_questionable_stuff() { assert(0); }
-void iofull::show_match() { assert(0); }
+// extra stuff:
 static void do_my_final_shutdown() {
    // send 'close' to window.
    // XXX NOT CORRECT.
    g_signal_emit_by_name(GTK_WIDGET(window_main), "GtkWidget::delete-event",
 			 NULL, NULL); // XXX is this correct?
+}
+
+void
+on_choose_font_for_printing_activate   (GtkMenuItem     *menuitem,
+                                        gpointer         user_data) {
+   gint result;
+   gtk_widget_show(window_font);
+   result = gtk_dialog_run(GTK_DIALOG(window_font));
+   gtk_widget_hide(window_font);
+   //XXX do something with this font.
 }
 
 ////////// 1815
@@ -1175,15 +1196,7 @@ void iofull::final_initialize()
 #endif
 
    // Initialize the display window linked list.
-
-   DisplayRoot = (DisplayType *) get_mem(sizeof(DisplayType));
-   DisplayRoot->Line[0] = -1;
-   DisplayRoot->Next = NULL;
-   DisplayRoot->Prev = NULL;
-   CurDisplay = DisplayRoot;
-#if 0
-   nTotalImageHeight = 0;
-#endif
+   gtk_text_buffer_set_text(main_buffer, "", -1);
 }
 
 
@@ -1197,7 +1210,7 @@ void EnterMessageLoop()
    WaitingForCommand = true;
 
    while (WaitingForCommand && !is_quit)
-      is_quit = gtk_main_iteration();
+      is_quit = !gtk_main_iteration();
 
    // The message loop has been broken.  Either we got a message
    // that requires action (user clicked on a call, as opposed to
@@ -1689,60 +1702,23 @@ uint32 iofull::get_number_fields(int nnumbers, bool forbid_zero)
 
 void iofull::add_new_line(char the_line[], uint32 drawing_picture)
 {
+   GtkTextIter iter;
    erase_questionable_stuff();
-   strncpy(CurDisplay->Line, the_line, DISPLAY_LINE_LENGTH-1);
-   CurDisplay->Line[DISPLAY_LINE_LENGTH-1] = 0;
-   CurDisplay->in_picture = drawing_picture;
-
-   if ((CurDisplay->in_picture & 1) && ui_options.no_graphics == 0) {
-      if ((CurDisplay->in_picture & 2)) {
-         CurDisplay->Height = BMP_PERSON_SIZE+BMP_PERSON_SPACE;
-         CurDisplay->DeltaToNext = (BMP_PERSON_SIZE+BMP_PERSON_SPACE)/2;
-      }
-      else {
-         if (!CurDisplay->Line[0])
-            CurDisplay->Height = 0;
-         else
-            CurDisplay->Height = BMP_PERSON_SIZE+BMP_PERSON_SPACE;
-
-         CurDisplay->DeltaToNext = CurDisplay->Height;
-      }
-   }
-   else {
-#if 0
-      CurDisplay->Height = TranscriptTextHeight;
-      CurDisplay->DeltaToNext = TranscriptTextHeight;
-#else
-      assert(0);
-#endif
-   }
-
-   if (!CurDisplay->Next) {
-      CurDisplay->Next = (DisplayType *) get_mem(sizeof(DisplayType));
-      CurDisplay->Next->Prev = CurDisplay;
-      CurDisplay = CurDisplay->Next;
-      CurDisplay->Next = NULL;
-   }
-   else
-      CurDisplay = CurDisplay->Next;
-
-   CurDisplay->Line[0] = -1;
-
-   Update_text_display();
+   // we ought to do something fancier if 'drawing picture'
+   // but for now we're just going to ignore that parameter.
+   gtk_text_buffer_get_end_iter(main_buffer, &iter);
+   gtk_text_buffer_insert(main_buffer, &iter, the_line, -1);
+   gtk_text_buffer_insert(main_buffer, &iter, "\n", -1);
 }
 
 
 
 void iofull::reduce_line_count(int n)
 {
-   CurDisplay = DisplayRoot;
-   while (CurDisplay->Line[0] != -1 && n--) {
-      CurDisplay = CurDisplay->Next;
-   }
-
-   CurDisplay->Line[0] = -1;
-
-   Update_text_display();
+   GtkTextIter iter1, iter2;
+   gtk_text_buffer_get_iter_at_line(main_buffer, &iter1, n);
+   gtk_text_buffer_get_end_iter(main_buffer, &iter2);
+   gtk_text_buffer_delete(main_buffer, &iter1, &iter2);
 }
 
 

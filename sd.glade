@@ -1729,6 +1729,8 @@
 
 			      <child>
 				<widget class="GtkTreeView" id="main_cmds">
+				  <property name="width_request">200</property>
+				  <property name="height_request">450</property>
 				  <property name="visible">True</property>
 				  <property name="can_focus">True</property>
 				  <property name="headers_visible">False</property>
