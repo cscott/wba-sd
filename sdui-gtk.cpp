@@ -35,11 +35,12 @@
 #include <assert.h>
 #include <gnome.h>
 #include <glade/glade.h>
+#include <librsvg/rsvg.h>
 
 #include "sd.h"
 #include "paths.h"
-#include "sdui-ico.h"
-#include "sdui-bmp.h"
+#include "sdui-ico.h" // sd icon
+#include "sdui-chk.h" // Checker images
 #include "resource.h" // for menu command constants
 extern "C" {
 #include "sdui-gtk.h" /* GLADE callback function prototypes */
@@ -1653,7 +1654,8 @@ void iofull::final_initialize()
       cinit(0xFFFF, 0x0000, 0xFFFF), // 6 - magenta
       cinit(0x0000, 0xFFFF, 0xFFFF), // 7 - cyan
    };
-   GdkPixmap *pixmap[8/*dancers*/*4/*directions*/+1/*phantom*/];
+   RsvgHandle *handle;
+   GdkPixmap *pixmap[8/*dancers*/*4/*directions*/];
    PangoLayout *layout;
    PangoFontDescription *fontdesc;
    GdkGC *gc;
@@ -1752,11 +1754,14 @@ void iofull::final_initialize()
 	     0, 0, 0, 0, -1, -1);
    }
    //      make phantom image.
-   gdk_gc_set_rgb_fg_color(gc, &fg);
-   gdk_draw_arc(GDK_DRAWABLE(pixmap[32]), gc, TRUE,
-		16, 16, 4, 4, 0, 360*64);
-   icons[PHANTOM] = gdk_pixbuf_get_from_drawable
-      (NULL, GDK_DRAWABLE(pixmap[32]), NULL, 0, 0, 0, 0, -1, -1);
+   handle = rsvg_handle_new();
+   char buf[strlen(sd_phantom_svg)+5];
+   snprintf(buf, sizeof(buf), sd_phantom_svg,
+	    ui_options.reverse_video ? "FFFFFF" : "000000");
+   rsvg_handle_write(handle, (unsigned char*)buf, strlen(buf), NULL);
+   rsvg_handle_close(handle, NULL);
+   icons[PHANTOM] = rsvg_handle_get_pixbuf(handle);
+   rsvg_handle_free(handle);
    // free
    for (i=0; i<sizeof(pixmap)/sizeof(*pixmap); i++)
       gdk_pixmap_unref(pixmap[i]);
