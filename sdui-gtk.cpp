@@ -107,41 +107,20 @@ static void uims_bell()
 
 static void UpdateStatusBar(const gchar *text)
 {
+   gchar buf[strlen(text)+15+16+12+14+11+13+1];
    assert(text);
 
-#if 0
-   if (allowing_modifications || allowing_all_concepts ||
-       using_active_phantoms || allowing_minigrand ||
-       ui_options.singing_call_mode || ui_options.nowarn_mode) {
-      (void) SendMessage(hwndStatusBar, SB_SETPARTS, 7, (LPARAM) StatusBarDimensions);
-
-      SendMessage(hwndStatusBar, SB_SETTEXT, 1,
-                  (LPARAM) ((allowing_modifications == 2) ? "all mods" :
-                            (allowing_modifications ? "simple mods" : "")));
-
-      SendMessage(hwndStatusBar, SB_SETTEXT, 2,
-                  (LPARAM) (allowing_all_concepts ? "all concepts" : ""));
-
-      SendMessage(hwndStatusBar, SB_SETTEXT, 3,
-                  (LPARAM) (using_active_phantoms ? "act phan" : ""));
-
-      SendMessage(hwndStatusBar, SB_SETTEXT, 4,
-                  (LPARAM) ((ui_options.singing_call_mode == 2) ? "rev singer" :
-                            (ui_options.singing_call_mode ? "singer" : "")));
-
-      SendMessage(hwndStatusBar, SB_SETTEXT, 5,
-                  (LPARAM) (ui_options.nowarn_mode ? "no warn" : ""));
-
-      SendMessage(hwndStatusBar, SB_SETTEXT, 6,
-                  (LPARAM) (allowing_minigrand ? "minigrand" : ""));
-   }
-   else {
-      (void) SendMessage(hwndStatusBar, SB_SETPARTS, 1, (LPARAM) StatusBarDimensions);
-   }
-
-   (void) SendMessage(hwndStatusBar, SB_SETTEXT, 0, (LPARAM) szGLOBFirstPane);
-   (void) SendMessage(hwndStatusBar, SB_SIMPLE, 0, 0);
-#endif
+   snprintf(buf, sizeof(buf), "%s%s%s%s%s%s%s",
+	    ((allowing_modifications == 2) ? "all mods | " :
+	     (allowing_modifications ? "simple mods | " : "")),
+	    (allowing_all_concepts ? "all concepts | " : ""),
+	    (using_active_phantoms ? "act phan | " : ""),
+	    ((ui_options.singing_call_mode == 2) ? "rev singer | " :
+	     (ui_options.singing_call_mode ? "singer | " : "")),
+	    (ui_options.nowarn_mode ? "no warn | " : ""),
+	    (allowing_minigrand ? "minigrand | " : ""),
+	    text);
+   gnome_appbar_set_status(GNOME_APPBAR(SDG("main_appbar")), buf);
    gtk_update();
 }
 /// 259
@@ -352,9 +331,11 @@ int main(int argc, char **argv) {
    // command-line options that we'll pass to sdmain.
    gnome_program_init(PACKAGE, VERSION, LIBGNOMEUI_MODULE,
 		      argc, argv,
+		      GNOME_PARAM_HUMAN_READABLE_NAME, "Sd",
 		      GNOME_PARAM_APP_DATADIR, PACKAGE_DATA_DIR,
 		      GNOME_PARAM_POPT_TABLE, all_options,
-		      NULL);
+		      LIBGNOMEUI_PARAM_CRASH_DIALOG, FALSE,
+		      GNOME_PARAM_NONE);
    // initialize the interface.
 
    sd_xml = glade_xml_new("sd.glade", NULL, NULL);
@@ -363,6 +344,11 @@ int main(int argc, char **argv) {
    window_text = SDG("dialog_text");
    window_font = SDG("dialog_font");
 
+   /* hide the progress bar (initially) */
+   gtk_widget_hide(GTK_WIDGET(gnome_appbar_get_progress
+			      (GNOME_APPBAR(SDG("main_appbar")))));
+
+   /* set up the various treeview widgets */
    startup_list = GTK_TREE_VIEW(SDG("startup_list"));
    renderer = gtk_cell_renderer_text_new();
    column = gtk_tree_view_column_new_with_attributes("Level/Session",renderer,
@@ -371,9 +357,6 @@ int main(int argc, char **argv) {
    column = gtk_tree_view_column_new_with_attributes("Commands", renderer,
 						     "text", 0, NULL);
    gtk_tree_view_append_column(GTK_TREE_VIEW(SDG("main_cmds")), column);
-   g_signal_connect
-      (G_OBJECT(gtk_tree_view_get_selection(startup_list)),
-       "changed", G_CALLBACK(on_startup_list_selection_changed), NULL);
 
    /* Load the (inlined) sd icon. */
    ico_pixbuf = gdk_pixbuf_new_from_inline (-1, sdico_inline, FALSE, NULL);
@@ -393,6 +376,9 @@ int main(int argc, char **argv) {
    /* connect the signals in the interface */
    glade_xml_signal_autoconnect(sd_xml);
    gtk_about_dialog_set_url_hook(about_open_url, NULL, NULL);
+   g_signal_connect
+      (G_OBJECT(gtk_tree_view_get_selection(startup_list)),
+       "changed", G_CALLBACK(on_startup_list_selection_changed), NULL);
 
    // Run the Sd program.  We'll have parsed the Sd-appropriate command-line
    // arguments into 'fake_args'.
@@ -501,6 +487,7 @@ void iofull::show_match() { assert(0); }
 void iofull::final_initialize() { assert(0); }
 static void do_my_final_shutdown() {
    // send 'close' to window.
+   // XXX NOT CORRECT.
    g_signal_emit_by_name(GTK_WIDGET(window_main), "GtkWidget::delete-event",
 			 NULL, NULL); // XXX is this correct?
 }
@@ -907,6 +894,8 @@ static void startup_init()
 
 bool iofull::init_step(init_callback_state s, int n)
 {
+   GtkProgressBar *progress_bar;
+   static int progress_num = 0, progress_steps=1;
    switch (s) {
 
    case get_session_info:
@@ -970,7 +959,8 @@ bool iofull::init_step(init_callback_state s, int n)
 
    case final_level_query:
       calling_level = l_mainstream;   // User really doesn't want to tell us the level.
-      strncat(outfile_string, filename_strings[calling_level], MAX_FILENAME_LENGTH);
+      snprintf(outfile_string, sizeof(outfile_string), "%s",
+	       filename_strings[calling_level]);
       break;
 
    case init_database1:
@@ -992,28 +982,36 @@ bool iofull::init_step(init_callback_state s, int n)
       break;
 
    case init_database2:
-#if 0
-      ShowWindow(hwndProgress, SW_SHOWNORMAL);
+      progress_bar =
+	 gnome_appbar_get_progress(GNOME_APPBAR(SDG("main_appbar")));
+      gtk_progress_bar_set_fraction(progress_bar, 0.0);
+      gtk_widget_show(GTK_WIDGET(progress_bar));
       UpdateStatusBar("Creating Menus");
       break;
 
    case calibrate_tick:
-      SendMessage(hwndProgress, PBM_SETRANGE, 0, MAKELONG(0, n));
-      SendMessage(hwndProgress, PBM_SETSTEP, 1, 0);
+      progress_num = 0;
+      progress_steps = n;
       break;
 
    case do_tick:
-      SendMessage(hwndProgress, PBM_SETSTEP, n, 0);
-      SendMessage(hwndProgress, PBM_STEPIT, 0, 0);
+      progress_num += n;
+      progress_bar =
+	 gnome_appbar_get_progress(GNOME_APPBAR(SDG("main_appbar")));
+      gtk_progress_bar_set_fraction(progress_bar,
+				    progress_num/(gdouble)progress_steps);
+      gtk_update();
       break;
 
    case tick_end:
       break;
 
    case do_accelerator:
-      ShowWindow(hwndProgress, SW_HIDE);
+      gtk_widget_hide(GTK_WIDGET(gnome_appbar_get_progress
+			      (GNOME_APPBAR(SDG("main_appbar")))));
       UpdateStatusBar("Processing Accelerator Keys");
-#endif
+      break;
+
    default:
       assert(0);
       break;
