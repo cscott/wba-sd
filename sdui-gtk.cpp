@@ -1631,10 +1631,31 @@ bool iofull::init_step(init_callback_state s, int n)
    return false;
 }
 
-
-
+typedef enum {
+    SPACE_QTR, SPACE_HALF, SPACE_3QTR, SPACE_FULL, PHANTOM, DANCER_START
+} special_img_t;
+static GdkPixbuf *icons[8/*dancers*/*4/*directions*/+4/*spaces*/+1/*phantom*/];
+static GdkColor cinit(guint16 red, guint16 green, guint16 blue) {
+   GdkColor c = { 0, red, green, blue };
+   return c;
+}
 void iofull::final_initialize()
 {
+   GdkColor bg, fg;
+   GdkColor icon_color[8] = { // The internal color scheme is:
+      cinit(0x0000, 0x0000, 0x0000), // 0 - not used
+      cinit(0x7FFF, 0x7FFF, 0x0000), // 1 - substitute yellow
+      cinit(0xFFFF, 0x0000, 0x0000), // 2 - red
+      cinit(0x0000, 0xFFFF, 0x0000), // 3 - green
+      cinit(0xFFFF, 0xFFFF, 0x0000), // 4 - yellow
+      cinit(0x0000, 0x0000, 0xFFFF), // 5 - blue
+      cinit(0xFFFF, 0x0000, 0xFFFF), // 6 - magenta
+      cinit(0x0000, 0xFFFF, 0xFFFF), // 7 - cyan
+   };
+   PangoLayout *layout;
+   PangoFontDescription *fontdesc;
+   GdkGC *gc;
+   int i;
    ui_options.use_escapes_for_drawing_people = 0;//2;
 
    // Install the pointy triangles.
@@ -1642,149 +1663,78 @@ void iofull::final_initialize()
    if (ui_options.no_graphics < 2)
       ui_options.direc = "?\020?\021????\036?\037?????";
 
-#if 0
-   HANDLE hRes = LoadResource(GLOBhInstance,
-                              FindResource(GLOBhInstance,
-                                           MAKEINTRESOURCE(IDB_BITMAP1), RT_BITMAP));
-
-   if (!hRes) gg->fatal_error_exit(1, "Can't load resources", 0);
-
-   // Map the bitmap file into memory.
-   LPBITMAPINFO lpBitsTemp = (LPBITMAPINFO) LockResource(hRes);
-
-   lpBi = (LPBITMAPINFO) GlobalAlloc(GMEM_FIXED,
-                                     lpBitsTemp->bmiHeader.biSize +
-                                     16*sizeof(RGBQUAD) +
-                                     BMP_PERSON_SIZE*BMP_PERSON_SIZE*20);
-
-   (void) memcpy(lpBi, lpBitsTemp,
-                 lpBitsTemp->bmiHeader.biSize +
-                 16*sizeof(RGBQUAD) +
-                 BMP_PERSON_SIZE*BMP_PERSON_SIZE*20);
-
-   lpBits = ((LPTSTR) lpBi) + lpBi->bmiHeader.biSize + 16*sizeof(RGBQUAD);
-
-   HANDLE hPal = GlobalAlloc(GHND, sizeof(LOGPALETTE) + (16*sizeof(PALETTEENTRY)));
-   LPLOGPALETTE lpPal = (LPLOGPALETTE) GlobalLock(hPal);
-   lpPal->palVersion = 0x300;
-   lpPal->palNumEntries = 16;
-   for (int i=0 ; i<16 ; i++) {
-      lpPal->palPalEntry[i].peRed   = lpBi->bmiColors[i].rgbRed;
-      lpPal->palPalEntry[i].peGreen = lpBi->bmiColors[i].rgbGreen;
-      lpPal->palPalEntry[i].peBlue  = lpBi->bmiColors[i].rgbBlue;
+   // Build appropriate checker images.
+   //   allocate all images
+   icons[SPACE_FULL] = gdk_pixbuf_new(GDK_COLORSPACE_RGB, TRUE, 8,
+				      BMP_PERSON_SIZE, BMP_PERSON_SIZE);
+   gdk_pixbuf_fill(icons[SPACE_FULL], ui_options.reverse_video ?
+		   0x00000000 /* transparent black */ :
+		   0xFFFFFF00 /* transparent white */);
+   for(i=0; i<3; i++) // create 1/4, 1/2, 3/4 spaces
+      icons[i] = gdk_pixbuf_new_subpixbuf
+	 (icons[SPACE_FULL], 0, 0, (i+1)*BMP_PERSON_SIZE/4, BMP_PERSON_SIZE);
+   for(i=PHANTOM; i < (PHANTOM+9); i++)
+      icons[i] = gdk_pixbuf_copy(icons[SPACE_FULL]);
+   //    create correct color translation table.
+   bg.red = bg.green = bg.blue = (ui_options.reverse_video ? 0xFFFF : 0x0000);
+   fg.red = fg.green = fg.blue = (ui_options.reverse_video ? 0x0000 : 0xFFFF);
+   if (ui_options.no_intensify) {
+      bg.red/=2; bg.green/=2; bg.blue/=2;
+      fg.red/=2; fg.green/=2; fg.blue/=2;
    }
-
-   hPalette = CreatePalette(lpPal);
-   GlobalUnlock(hPal);
-   GlobalFree(hPal);
-
-   // Now that we know the coloring options,
-   // fudge the color table in the mapped DIB.
-
-   // The standard 4-plane color scheme is:
-   //   0  black
-   //   1  dark red
-   //   2  dark green
-   //   3  dark yellow
-   //   4  dark blue
-   //   5  dark magenta
-   //   6  dark cyan
-   //   7  light gray
-   //   8  dark gray
-   //   9  bright red
-   //   10 bright green
-   //   11 bright yellow
-   //   12 bright blue
-   //   13 bright magenta
-   //   14 bright cyan
-   //   15 white
-
-   RGBQUAD glyphtext_fg, glyphtext_bg;
-
-   if (ui_options.reverse_video) {
-      if (ui_options.no_intensify) {
-         glyphtext_fg = lpBitsTemp->bmiColors[7];
-         plaintext_fg = RGB(192, 192, 192);
-         glyphtext_bg = lpBitsTemp->bmiColors[0];
-         plaintext_bg = RGB(0, 0, 0);
+   if (ui_options.color_scheme == no_color)
+      for (i=0; i<8; i++)
+	 icon_color[i] = fg;
+   //    draw icons
+   gc = gdk_gc_new(GDK_DRAWABLE(icons[SPACE_FULL]));
+   gdk_gc_set_rgb_bg_color(gc, &bg);
+   gdk_gc_set_fill(gc, GDK_SOLID);
+   gdk_gc_set_line_attributes
+      (gc, 1, GDK_LINE_SOLID, GDK_CAP_ROUND, GDK_JOIN_ROUND);
+   //      make 8 dancer images in four directions.
+   layout = gtk_widget_create_pango_layout(SDG("main_transcript"), NULL);
+   //fontdesc = pango_layout_get_font_description(layout);
+   fontdesc=pango_font_description_new();
+   pango_font_description_set_absolute_size(fontdesc, PANGO_SCALE*9);
+   pango_layout_set_font_description(layout, fontdesc);
+   pango_font_description_free(fontdesc);
+   for (i=0; i<8; i++) {
+      GdkPixbuf *p = icons[DANCER_START+i];
+      GdkDrawable *d = GDK_DRAWABLE(p);
+      char dancer_num = '1' + (i/2);
+      int is_boy = !(i&1);
+      // draw square/circle outline.
+      gdk_gc_set_rgb_fg_color(gc, &icon_color[color_index_list[i]]);
+      if (is_boy) {
+	 gdk_draw_rectangle(d, gc, TRUE, 9, 6, 25, 25);
+	 gdk_draw_rectangle(d, gc, TRUE, 2, 14, 9, 9);
+      } else {
+	 gdk_draw_arc(d, gc, TRUE, 9, 6, 25, 25, 0, 360*64);
+	 gdk_draw_arc(d, gc, TRUE, 2, 13, 11, 11, 0, 360*64);
       }
-      else {
-         glyphtext_fg = lpBitsTemp->bmiColors[15];
-         plaintext_fg = RGB(255, 255, 255);
-         glyphtext_bg = lpBitsTemp->bmiColors[0];
-         plaintext_bg = RGB(0, 0, 0);
+      // draw dancer # cutout
+      gdk_gc_set_rgb_fg_color(gc, &bg);
+      gdk_draw_rectangle(d, gc, TRUE, 16, 13, 11, 11);
+      // rotate.
+      for (int j=1; j<4; j++)
+	 icons[DANCER_START+i+(8*j)] =
+	    gdk_pixbuf_rotate_simple(p, (GdkPixbufRotation) (90*j));
+      // draw dancer #s (should be width=7, height=9)
+      pango_layout_set_text(layout, &dancer_num, 1);
+      for (int j=0; j<4; j++) {
+	 int x[4] = { 16+2, 13+2, 9+2, 13+2 };
+	 int y[4] = { 13+1, 9+1, 13+1, 16+1 };
+	 d = GDK_DRAWABLE(icons[DANCER_START+i+(8*j)]);
+	 gdk_draw_layout_with_colors(d, gc, x[j], y[j], layout, &fg, &bg);
       }
    }
-   else {
-      if (ui_options.no_intensify) {
-         glyphtext_fg = lpBitsTemp->bmiColors[0];
-         plaintext_fg = RGB(0, 0, 0);
-         glyphtext_bg = lpBitsTemp->bmiColors[7];
-         plaintext_bg = RGB(192, 192, 192);;
-      }
-      else {
-         glyphtext_fg = lpBitsTemp->bmiColors[0];
-         plaintext_fg = RGB(0, 0, 0);
-         glyphtext_bg = lpBitsTemp->bmiColors[15];
-         plaintext_bg = RGB(255, 255, 255);
-      }
-   }
-
-   if (ui_options.color_scheme == no_color) {
-      icon_color_translate[1] = glyphtext_fg;
-      icon_color_translate[2] = glyphtext_fg;
-      icon_color_translate[3] = glyphtext_fg;
-      icon_color_translate[4] = glyphtext_fg;
-      icon_color_translate[5] = glyphtext_fg;
-      icon_color_translate[6] = glyphtext_fg;
-      icon_color_translate[7] = glyphtext_fg;
-   }
-   else {
-      icon_color_translate[1] = lpBitsTemp->bmiColors[3];   // dark yellow
-      icon_color_translate[2] = lpBitsTemp->bmiColors[9];   // red
-      icon_color_translate[3] = lpBitsTemp->bmiColors[10];  // green
-      icon_color_translate[4] = lpBitsTemp->bmiColors[11];  // yellow
-      icon_color_translate[5] = lpBitsTemp->bmiColors[12];  // blue
-      icon_color_translate[6] = lpBitsTemp->bmiColors[13];  // magenta
-      icon_color_translate[7] = lpBitsTemp->bmiColors[14];  // cyan
-   }
-
-   // Now fill in the palette through which the pixels in
-   // the DIB will be translated.
-   // The people are "colored" in the DIB file as (colors in parentheses
-   //     are what the DIB would look like under a normal color map;
-   //     those colors are irrelevant for this program):
-   //   1G - 1  (dark red)
-   //   2G - 2  (dark green)
-   //   3G - 3  (dark yellow)
-   //   4G - 4  (dark blue)
-   //   1B - 9  (bright red)
-   //   2B - 10 (bright green)
-   //   3B - 11 (bright yellow)
-   //   4B - 12 (bright blue)
-   //   Also, the text showing the person number inside
-   //   each glyph is 15 (white) on 0 (black).
-
-   lpBi->bmiColors[1]  = icon_color_translate[color_index_list[1]];
-   lpBi->bmiColors[2]  = icon_color_translate[color_index_list[3]];
-   lpBi->bmiColors[3]  = icon_color_translate[color_index_list[5]];
-   lpBi->bmiColors[4]  = icon_color_translate[color_index_list[7]];
-   lpBi->bmiColors[9]  = icon_color_translate[color_index_list[0]];
-   lpBi->bmiColors[10] = icon_color_translate[color_index_list[2]];
-   lpBi->bmiColors[11] = icon_color_translate[color_index_list[4]];
-   lpBi->bmiColors[12] = icon_color_translate[color_index_list[6]];
-
-   lpBi->bmiColors[0]  = glyphtext_bg;
-   lpBi->bmiColors[15] = glyphtext_fg;
-
-   SetTitle();
-
-   ShowWindow(hwndCallMenu, SW_SHOWNORMAL);
-   ShowWindow(hwndTextInputArea, SW_SHOWNORMAL);
-   ShowWindow(hwndAcceptButton, SW_SHOWNORMAL);
-
-   UpdateWindow(hwndMain);
-#endif
+   //      make phantom image.
+   gdk_gc_set_rgb_fg_color(gc, &fg);
+   gdk_draw_arc(GDK_DRAWABLE(icons[PHANTOM]), gc, TRUE,
+		16, 16, 4, 4, 0, 360*64);
+   // free
+   g_object_unref(layout);
+   gdk_gc_unref(gc);
 
    // Initialize the display window linked list.
    gtk_text_buffer_set_text(main_buffer, "", -1);
