@@ -39,6 +39,7 @@
 #include "sd.h"
 #include "paths.h"
 #include "sdui-ico.h"
+#include "sdui-bmp.h"
 extern "C" {
 #include "sdui-gtk.h" /* GLADE callback function prototypes */
 }
@@ -484,7 +485,6 @@ static void about_open_url(GtkAboutDialog *about,
 static void Update_text_display() { assert(0); }
 static void erase_questionable_stuff() { assert(0); }
 void iofull::show_match() { assert(0); }
-void iofull::final_initialize() { assert(0); }
 static void do_my_final_shutdown() {
    // send 'close' to window.
    // XXX NOT CORRECT.
@@ -1018,9 +1018,176 @@ bool iofull::init_step(init_callback_state s, int n)
    }
    return false;
 }
-/// 2395
 
-/// 2561
+
+
+void iofull::final_initialize()
+{
+   ui_options.use_escapes_for_drawing_people = 2;
+
+#if 0
+   // Install the pointy triangles.
+
+   if (ui_options.no_graphics < 2)
+      ui_options.direc = "?\020?\021????\036?\037?????";
+
+   HANDLE hRes = LoadResource(GLOBhInstance,
+                              FindResource(GLOBhInstance,
+                                           MAKEINTRESOURCE(IDB_BITMAP1), RT_BITMAP));
+
+   if (!hRes) gg->fatal_error_exit(1, "Can't load resources", 0);
+
+   // Map the bitmap file into memory.
+   LPBITMAPINFO lpBitsTemp = (LPBITMAPINFO) LockResource(hRes);
+
+   lpBi = (LPBITMAPINFO) GlobalAlloc(GMEM_FIXED,
+                                     lpBitsTemp->bmiHeader.biSize +
+                                     16*sizeof(RGBQUAD) +
+                                     BMP_PERSON_SIZE*BMP_PERSON_SIZE*20);
+
+   (void) memcpy(lpBi, lpBitsTemp,
+                 lpBitsTemp->bmiHeader.biSize +
+                 16*sizeof(RGBQUAD) +
+                 BMP_PERSON_SIZE*BMP_PERSON_SIZE*20);
+
+   lpBits = ((LPTSTR) lpBi) + lpBi->bmiHeader.biSize + 16*sizeof(RGBQUAD);
+
+   HANDLE hPal = GlobalAlloc(GHND, sizeof(LOGPALETTE) + (16*sizeof(PALETTEENTRY)));
+   LPLOGPALETTE lpPal = (LPLOGPALETTE) GlobalLock(hPal);
+   lpPal->palVersion = 0x300;
+   lpPal->palNumEntries = 16;
+   for (int i=0 ; i<16 ; i++) {
+      lpPal->palPalEntry[i].peRed   = lpBi->bmiColors[i].rgbRed;
+      lpPal->palPalEntry[i].peGreen = lpBi->bmiColors[i].rgbGreen;
+      lpPal->palPalEntry[i].peBlue  = lpBi->bmiColors[i].rgbBlue;
+   }
+
+   hPalette = CreatePalette(lpPal);
+   GlobalUnlock(hPal);
+   GlobalFree(hPal);
+
+   // Now that we know the coloring options,
+   // fudge the color table in the mapped DIB.
+
+   // The standard 4-plane color scheme is:
+   //   0  black
+   //   1  dark red
+   //   2  dark green
+   //   3  dark yellow
+   //   4  dark blue
+   //   5  dark magenta
+   //   6  dark cyan
+   //   7  light gray
+   //   8  dark gray
+   //   9  bright red
+   //   10 bright green
+   //   11 bright yellow
+   //   12 bright blue
+   //   13 bright magenta
+   //   14 bright cyan
+   //   15 white
+
+   RGBQUAD glyphtext_fg, glyphtext_bg;
+
+   if (ui_options.reverse_video) {
+      if (ui_options.no_intensify) {
+         glyphtext_fg = lpBitsTemp->bmiColors[7];
+         plaintext_fg = RGB(192, 192, 192);
+         glyphtext_bg = lpBitsTemp->bmiColors[0];
+         plaintext_bg = RGB(0, 0, 0);
+      }
+      else {
+         glyphtext_fg = lpBitsTemp->bmiColors[15];
+         plaintext_fg = RGB(255, 255, 255);
+         glyphtext_bg = lpBitsTemp->bmiColors[0];
+         plaintext_bg = RGB(0, 0, 0);
+      }
+   }
+   else {
+      if (ui_options.no_intensify) {
+         glyphtext_fg = lpBitsTemp->bmiColors[0];
+         plaintext_fg = RGB(0, 0, 0);
+         glyphtext_bg = lpBitsTemp->bmiColors[7];
+         plaintext_bg = RGB(192, 192, 192);;
+      }
+      else {
+         glyphtext_fg = lpBitsTemp->bmiColors[0];
+         plaintext_fg = RGB(0, 0, 0);
+         glyphtext_bg = lpBitsTemp->bmiColors[15];
+         plaintext_bg = RGB(255, 255, 255);
+      }
+   }
+
+   if (ui_options.color_scheme == no_color) {
+      icon_color_translate[1] = glyphtext_fg;
+      icon_color_translate[2] = glyphtext_fg;
+      icon_color_translate[3] = glyphtext_fg;
+      icon_color_translate[4] = glyphtext_fg;
+      icon_color_translate[5] = glyphtext_fg;
+      icon_color_translate[6] = glyphtext_fg;
+      icon_color_translate[7] = glyphtext_fg;
+   }
+   else {
+      icon_color_translate[1] = lpBitsTemp->bmiColors[3];   // dark yellow
+      icon_color_translate[2] = lpBitsTemp->bmiColors[9];   // red
+      icon_color_translate[3] = lpBitsTemp->bmiColors[10];  // green
+      icon_color_translate[4] = lpBitsTemp->bmiColors[11];  // yellow
+      icon_color_translate[5] = lpBitsTemp->bmiColors[12];  // blue
+      icon_color_translate[6] = lpBitsTemp->bmiColors[13];  // magenta
+      icon_color_translate[7] = lpBitsTemp->bmiColors[14];  // cyan
+   }
+
+   // Now fill in the palette through which the pixels in
+   // the DIB will be translated.
+   // The people are "colored" in the DIB file as (colors in parentheses
+   //     are what the DIB would look like under a normal color map;
+   //     those colors are irrelevant for this program):
+   //   1G - 1  (dark red)
+   //   2G - 2  (dark green)
+   //   3G - 3  (dark yellow)
+   //   4G - 4  (dark blue)
+   //   1B - 9  (bright red)
+   //   2B - 10 (bright green)
+   //   3B - 11 (bright yellow)
+   //   4B - 12 (bright blue)
+   //   Also, the text showing the person number inside
+   //   each glyph is 15 (white) on 0 (black).
+
+   lpBi->bmiColors[1]  = icon_color_translate[color_index_list[1]];
+   lpBi->bmiColors[2]  = icon_color_translate[color_index_list[3]];
+   lpBi->bmiColors[3]  = icon_color_translate[color_index_list[5]];
+   lpBi->bmiColors[4]  = icon_color_translate[color_index_list[7]];
+   lpBi->bmiColors[9]  = icon_color_translate[color_index_list[0]];
+   lpBi->bmiColors[10] = icon_color_translate[color_index_list[2]];
+   lpBi->bmiColors[11] = icon_color_translate[color_index_list[4]];
+   lpBi->bmiColors[12] = icon_color_translate[color_index_list[6]];
+
+   lpBi->bmiColors[0]  = glyphtext_bg;
+   lpBi->bmiColors[15] = glyphtext_fg;
+
+   SetTitle();
+
+   ShowWindow(hwndCallMenu, SW_SHOWNORMAL);
+   ShowWindow(hwndTextInputArea, SW_SHOWNORMAL);
+   ShowWindow(hwndAcceptButton, SW_SHOWNORMAL);
+
+   UpdateWindow(hwndMain);
+#endif
+
+   // Initialize the display window linked list.
+
+   DisplayRoot = (DisplayType *) get_mem(sizeof(DisplayType));
+   DisplayRoot->Line[0] = -1;
+   DisplayRoot->Next = NULL;
+   DisplayRoot->Prev = NULL;
+   CurDisplay = DisplayRoot;
+#if 0
+   nTotalImageHeight = 0;
+#endif
+}
+
+
+
 // Process GTK messages
 void EnterMessageLoop()
 {

@@ -105,7 +105,7 @@ sd_calls.dat: sd_calls.txt mkcalls
 .cpp.o:
 	$(CC) $(CFLAGS) -c $<
 
-sdui-gtk.o: sdui-gtk.cpp sdui-gtk.h sdui-ico.h
+sdui-gtk.o: sdui-gtk.cpp sdui-gtk.h sdui-ico.h sdui-bmp.h
 	$(CC) $(CFLAGS) `pkg-config --cflags libglade-2.0 libgnomeui-2.0` -c $<
 sdui-ttu.o: sdui-ttu.cpp
 	$(CC) $(CFLAGS) $(TTY_FLAGS) -c $<
@@ -124,6 +124,8 @@ $(SDLIB_OBJS) $(SD_OBJS) $(SDTTY_OBJS): sd.h database.h paths.h
 
 sdui-ico.h: sd.ico
 	gdk-pixbuf-csource --raw --name=sdico_inline $< > $@
+sdui-bmp.h: sd.bmp
+	gdk-pixbuf-csource --raw --name=sdbmp_inline $< > $@
 
 clean::
 	-$(RM) *.o sd sdtty mkcalls sd_calls.dat tags
