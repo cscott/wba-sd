@@ -212,7 +212,7 @@
 			      <property name="inconsistent">False</property>
 			      <property name="draw_indicator">True</property>
 			      <property name="group">startup_db_default</property>
-			      <signal name="clicked" handler="on_calldb_clicked" last_modification_time="Mon, 21 Mar 2005 04:02:32 GMT"/>
+			      <signal name="clicked" handler="on_calldb_changed" last_modification_time="Mon, 21 Mar 2005 04:02:32 GMT"/>
 			    </widget>
 			    <packing>
 			      <property name="padding">0</property>
@@ -875,12 +875,13 @@
 		      <child>
 			<widget class="GtkImageMenuItem" id="choose_font_for_printing">
 			  <property name="visible">True</property>
+			  <property name="tooltip" translatable="yes">Customize the font that will be used later if you print the file.</property>
 			  <property name="label" translatable="yes">Choose _font for printing</property>
 			  <property name="use_underline">True</property>
 			  <signal name="activate" handler="on_choose_font_for_printing_activate" last_modification_time="Mon, 21 Mar 2005 03:31:21 GMT"/>
 
 			  <child internal-child="image">
-			    <widget class="GtkImage" id="image4">
+			    <widget class="GtkImage" id="image8">
 			      <property name="visible">True</property>
 			      <property name="stock">gtk-select-font</property>
 			      <property name="icon_size">1</property>
@@ -902,11 +903,12 @@
 		      </child>
 
 		      <child>
-			<widget class="GtkMenuItem" id="print_any_file">
+			<widget class="GtkMenuItem" id="file_print_any">
 			  <property name="visible">True</property>
+			  <property name="tooltip" translatable="yes">Print any other file.</property>
 			  <property name="label" translatable="yes">Print a_ny file</property>
 			  <property name="use_underline">True</property>
-			  <signal name="activate" handler="on_print_any_file_activate" last_modification_time="Sat, 19 Mar 2005 05:52:47 GMT"/>
+			  <signal name="activate" handler="on_file_print_any_activate" last_modification_time="Sat, 19 Mar 2005 05:52:47 GMT"/>
 			</widget>
 		      </child>
 
@@ -977,6 +979,7 @@
 		      <child>
 			<widget class="GtkMenuItem" id="cut_one_call">
 			  <property name="visible">True</property>
+			  <property name="tooltip" translatable="yes">Remove (cut) the last call, and move it to the clipboard.</property>
 			  <property name="label" translatable="yes">Cut one call</property>
 			  <property name="use_underline">True</property>
 			  <signal name="activate" handler="on_cut_one_call_activate" last_modification_time="Sat, 19 Mar 2005 05:52:47 GMT"/>
@@ -987,6 +990,7 @@
 		      <child>
 			<widget class="GtkMenuItem" id="paste_one_call">
 			  <property name="visible">True</property>
+			  <property name="tooltip" translatable="yes">Move the first call on the clipboard back to the active sequence.</property>
 			  <property name="label" translatable="yes">Paste one call</property>
 			  <property name="use_underline">True</property>
 			  <signal name="activate" handler="on_paste_one_call_activate" last_modification_time="Sat, 19 Mar 2005 05:52:47 GMT"/>
@@ -997,6 +1001,7 @@
 		      <child>
 			<widget class="GtkMenuItem" id="paste_all_calls">
 			  <property name="visible">True</property>
+			  <property name="tooltip" translatable="yes">Move the entire contents of the clipboard back to the active sequence.</property>
 			  <property name="label" translatable="yes">Paste all calls</property>
 			  <property name="use_underline">True</property>
 			  <signal name="activate" handler="on_paste_all_calls_activate" last_modification_time="Sat, 19 Mar 2005 05:52:47 GMT"/>
@@ -1006,6 +1011,7 @@
 		      <child>
 			<widget class="GtkMenuItem" id="delete_one_call_from_clipboard">
 			  <property name="visible">True</property>
+			  <property name="tooltip" translatable="yes">Throw away the first call on the clipboard, leaving all the rest.</property>
 			  <property name="label" translatable="yes">Delete one call from clipboard</property>
 			  <property name="use_underline">True</property>
 			  <signal name="activate" handler="on_delete_one_call_from_clipboard_activate" last_modification_time="Sat, 19 Mar 2005 05:52:47 GMT"/>
@@ -1015,6 +1021,7 @@
 		      <child>
 			<widget class="GtkMenuItem" id="delete_all_calls_from_clipboard">
 			  <property name="visible">True</property>
+			  <property name="tooltip" translatable="yes">Throw away the entire clipbaord.  Its contents are lost.</property>
 			  <property name="label" translatable="yes">Delete all calls from clipboard</property>
 			  <property name="use_underline">True</property>
 			  <signal name="activate" handler="on_delete_all_calls_from_clipboard_activate" last_modification_time="Sat, 19 Mar 2005 05:52:47 GMT"/>
@@ -1037,13 +1044,14 @@
 		      <child>
 			<widget class="GtkImageMenuItem" id="undo_last_call">
 			  <property name="visible">True</property>
+			  <property name="tooltip" translatable="yes">Undo last call or concept, or exit from current search.</property>
 			  <property name="label" translatable="yes">_Undo last call</property>
 			  <property name="use_underline">True</property>
 			  <signal name="activate" handler="on_undo_last_call_activate" last_modification_time="Sat, 19 Mar 2005 05:52:47 GMT"/>
 			  <accelerator key="F9" modifiers="0" signal="activate"/>
 
 			  <child internal-child="image">
-			    <widget class="GtkImage" id="image5">
+			    <widget class="GtkImage" id="image9">
 			      <property name="visible">True</property>
 			      <property name="stock">gtk-undo</property>
 			      <property name="icon_size">1</property>
@@ -1059,6 +1067,7 @@
 		      <child>
 			<widget class="GtkMenuItem" id="abort_this_sequence">
 			  <property name="visible">True</property>
+			  <property name="tooltip" translatable="yes">Stop the current sequence WITHOUT WRITING IT OUT; start over.</property>
 			  <property name="label" translatable="yes">_Abort this sequence</property>
 			  <property name="use_underline">True</property>
 			  <signal name="activate" handler="on_abort_this_sequence_activate" last_modification_time="Sat, 19 Mar 2005 05:52:47 GMT"/>
@@ -1068,6 +1077,7 @@
 		      <child>
 			<widget class="GtkMenuItem" id="end_this_sequence">
 			  <property name="visible">True</property>
+			  <property name="tooltip" translatable="yes">Write this (resolved) sequence to the file, and start the next one.</property>
 			  <property name="label" translatable="yes">_End this sequence</property>
 			  <property name="use_underline">True</property>
 			  <signal name="activate" handler="on_end_this_sequence_activate" last_modification_time="Sat, 19 Mar 2005 05:52:47 GMT"/>
@@ -1077,13 +1087,14 @@
 		      <child>
 			<widget class="GtkImageMenuItem" id="write_this_sequence">
 			  <property name="visible">True</property>
+			  <property name="tooltip" translatable="yes">Write this (resolved) sequence to the file, and start the next one.</property>
 			  <property name="label" translatable="yes">_Write this sequence</property>
 			  <property name="use_underline">True</property>
 			  <signal name="activate" handler="on_write_this_sequence_activate" last_modification_time="Sat, 19 Mar 2005 05:52:47 GMT"/>
 			  <accelerator key="F10" modifiers="0" signal="activate"/>
 
 			  <child internal-child="image">
-			    <widget class="GtkImage" id="image6">
+			    <widget class="GtkImage" id="image10">
 			      <property name="visible">True</property>
 			      <property name="stock">gtk-save</property>
 			      <property name="icon_size">1</property>
@@ -1099,6 +1110,7 @@
 		      <child>
 			<widget class="GtkMenuItem" id="insert_a_comment">
 			  <property name="visible">True</property>
+			  <property name="tooltip" translatable="yes">This lets you type a &quot;comment&quot; that will appear in the transcript.</property>
 			  <property name="label" translatable="yes">Insert a _comment</property>
 			  <property name="use_underline">True</property>
 			  <signal name="activate" handler="on_insert_a_comment_activate" last_modification_time="Sat, 19 Mar 2005 05:52:47 GMT"/>
@@ -1109,6 +1121,7 @@
 		      <child>
 			<widget class="GtkMenuItem" id="toggle_concept_levels">
 			  <property name="visible">True</property>
+			  <property name="tooltip" translatable="yes">Toggles (turn on or off) the ability to use concepts that aren't legal at this level.</property>
 			  <property name="label" translatable="yes">Toggle concept _levels</property>
 			  <property name="use_underline">True</property>
 			  <signal name="activate" handler="on_toggle_concept_levels_activate" last_modification_time="Sat, 19 Mar 2005 05:52:47 GMT"/>
@@ -1119,6 +1132,7 @@
 		      <child>
 			<widget class="GtkMenuItem" id="toggle_active_phantoms">
 			  <property name="visible">True</property>
+			  <property name="tooltip" translatable="yes">Toggles the presence of &quot;active phantoms&quot;.  Do you really want to do this?</property>
 			  <property name="label" translatable="yes">Toggle active phantoms</property>
 			  <property name="use_underline">True</property>
 			  <signal name="activate" handler="on_toggle_active_phantoms_activate" last_modification_time="Sat, 19 Mar 2005 05:52:47 GMT"/>
@@ -1128,6 +1142,7 @@
 		      <child>
 			<widget class="GtkMenuItem" id="discard_entered_concepts">
 			  <property name="visible">True</property>
+			  <property name="tooltip" translatable="yes">Erase whatever concepts you had entered prior to entering a call.</property>
 			  <property name="label" translatable="yes">Discard entered concepts</property>
 			  <property name="use_underline">True</property>
 			  <signal name="activate" handler="on_discard_entered_concepts_activate" last_modification_time="Sat, 19 Mar 2005 05:52:47 GMT"/>
@@ -1137,6 +1152,7 @@
 		      <child>
 			<widget class="GtkMenuItem" id="change_output_file">
 			  <property name="visible">True</property>
+			  <property name="tooltip" translatable="yes">Change the filename for the finished transcript file.</property>
 			  <property name="label" translatable="yes">Change output file</property>
 			  <property name="use_underline">True</property>
 			  <signal name="activate" handler="on_change_output_file_activate" last_modification_time="Sat, 19 Mar 2005 05:52:47 GMT"/>
@@ -1146,6 +1162,7 @@
 		      <child>
 			<widget class="GtkMenuItem" id="change_title">
 			  <property name="visible">True</property>
+			  <property name="tooltip" translatable="yes">Change the title that is printed at the top of all cards.</property>
 			  <property name="label" translatable="yes">Change title</property>
 			  <property name="use_underline">True</property>
 			  <signal name="activate" handler="on_change_title_activate" last_modification_time="Sat, 19 Mar 2005 05:52:47 GMT"/>
@@ -1161,6 +1178,7 @@
 		      <child>
 			<widget class="GtkMenuItem" id="keep_picture">
 			  <property name="visible">True</property>
+			  <property name="tooltip" translatable="yes">Cause the current picture (setup diagram) to be printed on the card.</property>
 			  <property name="label" translatable="yes">_Keep picture</property>
 			  <property name="use_underline">True</property>
 			  <signal name="activate" handler="on_keep_picture_activate" last_modification_time="Sat, 19 Mar 2005 05:52:47 GMT"/>
@@ -1180,6 +1198,7 @@
 			      <child>
 				<widget class="GtkMenuItem" id="resolve">
 				  <property name="visible">True</property>
+				  <property name="tooltip" translatable="yes">Search for resolves for the current sequence.</property>
 				  <property name="label" translatable="yes">_Resolve</property>
 				  <property name="use_underline">True</property>
 				  <signal name="activate" handler="on_resolve_activate" last_modification_time="Sat, 19 Mar 2005 05:52:47 GMT"/>
@@ -1190,6 +1209,7 @@
 			      <child>
 				<widget class="GtkMenuItem" id="normalize">
 				  <property name="visible">True</property>
+				  <property name="tooltip" translatable="yes">Search for a call or calls that leave an 8-person setup with no phantoms.</property>
 				  <property name="label" translatable="yes">_Normalize</property>
 				  <property name="use_underline">True</property>
 				  <signal name="activate" handler="on_normalize_activate" last_modification_time="Sat, 19 Mar 2005 05:52:47 GMT"/>
@@ -1200,6 +1220,7 @@
 			      <child>
 				<widget class="GtkMenuItem" id="reconcile">
 				  <property name="visible">True</property>
+				  <property name="tooltip" translatable="yes">Search for a call or calls, not at the end of the sequence, that makes it resolve.</property>
 				  <property name="label" translatable="yes">Rec_oncile</property>
 				  <property name="use_underline">True</property>
 				  <signal name="activate" handler="on_reconcile_activate" last_modification_time="Sat, 19 Mar 2005 05:52:47 GMT"/>
@@ -1210,6 +1231,7 @@
 			      <child>
 				<widget class="GtkMenuItem" id="standardize">
 				  <property name="visible">True</property>
+				  <property name="tooltip" translatable="yes">Search for a call or calls that leave a setup that isn't T-boned.</property>
 				  <property name="label" translatable="yes">S_tandardize</property>
 				  <property name="use_underline">True</property>
 				  <signal name="activate" handler="on_standardize_activate" last_modification_time="Sat, 19 Mar 2005 05:52:47 GMT"/>
@@ -1220,6 +1242,7 @@
 			      <child>
 				<widget class="GtkMenuItem" id="random_call">
 				  <property name="visible">True</property>
+				  <property name="tooltip" translatable="yes">Search for any legal call or concept/call combination.</property>
 				  <property name="label" translatable="yes">R_andom call</property>
 				  <property name="use_underline">True</property>
 				  <signal name="activate" handler="on_random_call_activate" last_modification_time="Sat, 19 Mar 2005 05:52:47 GMT"/>
@@ -1230,6 +1253,7 @@
 			      <child>
 				<widget class="GtkMenuItem" id="simple_call">
 				  <property name="visible">True</property>
+				  <property name="tooltip" translatable="yes">Search for any legal call, but with no concepts.</property>
 				  <property name="label" translatable="yes">_Simple call</property>
 				  <property name="use_underline">True</property>
 				  <signal name="activate" handler="on_simple_call_activate" last_modification_time="Sat, 19 Mar 2005 05:52:47 GMT"/>
@@ -1240,6 +1264,7 @@
 			      <child>
 				<widget class="GtkMenuItem" id="concept_call">
 				  <property name="visible">True</property>
+				  <property name="tooltip" translatable="yes">Search for any concept/call combination.</property>
 				  <property name="label" translatable="yes">_Concept call</property>
 				  <property name="use_underline">True</property>
 				  <signal name="activate" handler="on_concept_call_activate" last_modification_time="Sat, 19 Mar 2005 05:52:47 GMT"/>
@@ -1250,6 +1275,7 @@
 			      <child>
 				<widget class="GtkMenuItem" id="level_call">
 				  <property name="visible">True</property>
+				  <property name="tooltip" translatable="yes">Search for any call that is interesting at this level.</property>
 				  <property name="label" translatable="yes">_Level call</property>
 				  <property name="use_underline">True</property>
 				  <signal name="activate" handler="on_level_call_activate" last_modification_time="Sat, 19 Mar 2005 05:52:47 GMT"/>
@@ -1260,6 +1286,7 @@
 			      <child>
 				<widget class="GtkMenuItem" id="8_person_level_call">
 				  <property name="visible">True</property>
+				  <property name="tooltip" translatable="yes">Search for an 8-person call that is interesting at this level.</property>
 				  <property name="label" translatable="yes">_8-person level call</property>
 				  <property name="use_underline">True</property>
 				  <signal name="activate" handler="on_8_person_level_call_activate" last_modification_time="Sat, 19 Mar 2005 05:52:47 GMT"/>
@@ -1276,7 +1303,6 @@
 			  <property name="visible">True</property>
 			  <property name="label" translatable="yes">Create _setup...</property>
 			  <property name="use_underline">True</property>
-			  <signal name="activate" handler="on_create_setup_activate" last_modification_time="Sat, 19 Mar 2005 05:52:47 GMT"/>
 
 			  <child>
 			    <widget class="GtkMenu" id="create_setup_menu">
@@ -1284,6 +1310,7 @@
 			      <child>
 				<widget class="GtkMenuItem" id="waves">
 				  <property name="visible">True</property>
+				  <property name="tooltip" translatable="yes">Search for calls that create a setup of parallel waves.</property>
 				  <property name="label" translatable="yes">_Waves</property>
 				  <property name="use_underline">True</property>
 				  <signal name="activate" handler="on_waves_activate" last_modification_time="Sat, 19 Mar 2005 05:52:47 GMT"/>
@@ -1293,6 +1320,7 @@
 			      <child>
 				<widget class="GtkMenuItem" id="2_faced_lines">
 				  <property name="visible">True</property>
+				  <property name="tooltip" translatable="yes">Search for calls that create a setup of parallel 2-faced lines.</property>
 				  <property name="label" translatable="yes">_2-faced lines</property>
 				  <property name="use_underline">True</property>
 				  <signal name="activate" handler="on_2_faced_lines_activate" last_modification_time="Sat, 19 Mar 2005 05:52:47 GMT"/>
@@ -1302,6 +1330,7 @@
 			      <child>
 				<widget class="GtkMenuItem" id="lines_in">
 				  <property name="visible">True</property>
+				  <property name="tooltip" translatable="yes">Search for calls that create a setup of lines facing.</property>
 				  <property name="label" translatable="yes">Lines _in</property>
 				  <property name="use_underline">True</property>
 				  <signal name="activate" handler="on_lines_in_activate" last_modification_time="Sat, 19 Mar 2005 05:52:47 GMT"/>
@@ -1311,6 +1340,7 @@
 			      <child>
 				<widget class="GtkMenuItem" id="lines_out">
 				  <property name="visible">True</property>
+				  <property name="tooltip" translatable="yes">Search for calls that create a setup of lines back-to-back.</property>
 				  <property name="label" translatable="yes">Lines _out</property>
 				  <property name="use_underline">True</property>
 				  <signal name="activate" handler="on_lines_out_activate" last_modification_time="Sat, 19 Mar 2005 05:52:47 GMT"/>
@@ -1320,6 +1350,7 @@
 			      <child>
 				<widget class="GtkMenuItem" id="inverted_lines">
 				  <property name="visible">True</property>
+				  <property name="tooltip" translatable="yes">Search for calls that create a setup of parallel inverted lines.</property>
 				  <property name="label" translatable="yes">In_verted lines</property>
 				  <property name="use_underline">True</property>
 				  <signal name="activate" handler="on_inverted_lines_activate" last_modification_time="Sat, 19 Mar 2005 05:52:47 GMT"/>
@@ -1329,6 +1360,7 @@
 			      <child>
 				<widget class="GtkMenuItem" id="3_and_1_lines">
 				  <property name="visible">True</property>
+				  <property name="tooltip" translatable="yes">Search for calls that create a setup of any parallel 3&amp;1 lines.</property>
 				  <property name="label" translatable="yes">_3 &amp; 1 lines</property>
 				  <property name="use_underline">True</property>
 				  <signal name="activate" handler="on_3_and_1_lines_activate" last_modification_time="Sat, 19 Mar 2005 05:52:47 GMT"/>
@@ -1338,6 +1370,7 @@
 			      <child>
 				<widget class="GtkMenuItem" id="any_lines">
 				  <property name="visible">True</property>
+				  <property name="tooltip" translatable="yes">Search for calls that create a setup of any parallel lines.</property>
 				  <property name="label" translatable="yes">_Any lines</property>
 				  <property name="use_underline">True</property>
 				  <signal name="activate" handler="on_any_lines_activate" last_modification_time="Sat, 19 Mar 2005 05:52:47 GMT"/>
@@ -1347,6 +1380,7 @@
 			      <child>
 				<widget class="GtkMenuItem" id="columns">
 				  <property name="visible">True</property>
+				  <property name="tooltip" translatable="yes">Search for calls that create a setup of right- or left-handed columns.</property>
 				  <property name="label" translatable="yes">Colum_ns</property>
 				  <property name="use_underline">True</property>
 				  <signal name="activate" handler="on_columns_activate" last_modification_time="Sat, 19 Mar 2005 05:52:47 GMT"/>
@@ -1356,6 +1390,7 @@
 			      <child>
 				<widget class="GtkMenuItem" id="magic_columns">
 				  <property name="visible">True</property>
+				  <property name="tooltip" translatable="yes">Search for calls that create a setup of magic columns.</property>
 				  <property name="label" translatable="yes">_Magic columns</property>
 				  <property name="use_underline">True</property>
 				  <signal name="activate" handler="on_magic_columns_activate" last_modification_time="Sat, 19 Mar 2005 05:52:47 GMT"/>
@@ -1365,7 +1400,7 @@
 			      <child>
 				<widget class="GtkMenuItem" id="dpt">
 				  <property name="visible">True</property>
-				  <property name="tooltip" translatable="yes">Double pass-thru</property>
+				  <property name="tooltip" translatable="yes">Search for calls that create a setup of a starting Double Pass Thru.</property>
 				  <property name="label" translatable="yes">_DPT</property>
 				  <property name="use_underline">True</property>
 				  <signal name="activate" handler="on_dpt_activate" last_modification_time="Sat, 19 Mar 2005 05:52:47 GMT"/>
@@ -1375,7 +1410,7 @@
 			      <child>
 				<widget class="GtkMenuItem" id="cdpt">
 				  <property name="visible">True</property>
-				  <property name="tooltip" translatable="yes">Completed double pass-thru</property>
+				  <property name="tooltip" translatable="yes">Search for calls that create a setup of a completed Double Pass-Thru.</property>
 				  <property name="label" translatable="yes">CD_PT</property>
 				  <property name="use_underline">True</property>
 				  <signal name="activate" handler="on_cdpt_activate" last_modification_time="Sat, 19 Mar 2005 05:52:47 GMT"/>
@@ -1385,6 +1420,7 @@
 			      <child>
 				<widget class="GtkMenuItem" id="8_chain">
 				  <property name="visible">True</property>
+				  <property name="tooltip" translatable="yes">Search for calls that create a setup of an 8-chain.</property>
 				  <property name="label" translatable="yes">_8-chain</property>
 				  <property name="use_underline">True</property>
 				  <signal name="activate" handler="on_8_chain_activate" last_modification_time="Sat, 19 Mar 2005 05:52:47 GMT"/>
@@ -1394,6 +1430,7 @@
 			      <child>
 				<widget class="GtkMenuItem" id="trade_by">
 				  <property name="visible">True</property>
+				  <property name="tooltip" translatable="yes">Search for calls that create a setup of a trade-by.</property>
 				  <property name="label" translatable="yes">_Trade by</property>
 				  <property name="use_underline">True</property>
 				  <signal name="activate" handler="on_trade_by_activate" last_modification_time="Sat, 19 Mar 2005 05:52:47 GMT"/>
@@ -1403,6 +1440,7 @@
 			      <child>
 				<widget class="GtkMenuItem" id="any_columns">
 				  <property name="visible">True</property>
+				  <property name="tooltip" translatable="yes">Search for calls that create a setup of any general columns.</property>
 				  <property name="label" translatable="yes">An_y columns</property>
 				  <property name="use_underline">True</property>
 				  <signal name="activate" handler="on_any_columns_activate" last_modification_time="Sat, 19 Mar 2005 05:52:47 GMT"/>
@@ -1412,6 +1450,7 @@
 			      <child>
 				<widget class="GtkMenuItem" id="tidal_wave">
 				  <property name="visible">True</property>
+				  <property name="tooltip" translatable="yes">Search for calls that create a setup of a tidal wave.</property>
 				  <property name="label" translatable="yes">Tida_l wave</property>
 				  <property name="use_underline">True</property>
 				  <signal name="activate" handler="on_tidal_wave_activate" last_modification_time="Sat, 19 Mar 2005 05:52:47 GMT"/>
@@ -1421,6 +1460,7 @@
 			      <child>
 				<widget class="GtkMenuItem" id="any_tidal_setup">
 				  <property name="visible">True</property>
+				  <property name="tooltip" translatable="yes">Search for calls that create a setup of any tidal line or column.</property>
 				  <property name="label" translatable="yes">Any tidal setup</property>
 				  <property name="use_underline">True</property>
 				  <signal name="activate" handler="on_any_tidal_setup_activate" last_modification_time="Sat, 19 Mar 2005 05:52:47 GMT"/>
@@ -1430,6 +1470,7 @@
 			      <child>
 				<widget class="GtkMenuItem" id="diamonds">
 				  <property name="visible">True</property>
+				  <property name="tooltip" translatable="yes">Search for calls that create a setup of any parallel diamonds.</property>
 				  <property name="label" translatable="yes">Diamonds</property>
 				  <property name="use_underline">True</property>
 				  <signal name="activate" handler="on_diamonds_activate" last_modification_time="Sat, 19 Mar 2005 05:52:47 GMT"/>
@@ -1439,6 +1480,7 @@
 			      <child>
 				<widget class="GtkMenuItem" id="qtag">
 				  <property name="visible">True</property>
+				  <property name="tooltip" translatable="yes">Search for calls that create a setup of a 1/4 tag.</property>
 				  <property name="label" translatable="yes">1/4 tag</property>
 				  <property name="use_underline">True</property>
 				  <signal name="activate" handler="on_qtag_activate" last_modification_time="Sat, 19 Mar 2005 05:52:47 GMT"/>
@@ -1448,6 +1490,7 @@
 			      <child>
 				<widget class="GtkMenuItem" id="_3qtag">
 				  <property name="visible">True</property>
+				  <property name="tooltip" translatable="yes">Search for calls that create a setup of a 3/4 tag.</property>
 				  <property name="label" translatable="yes">3/4 tag</property>
 				  <property name="use_underline">True</property>
 				  <signal name="activate" handler="on__3qtag_activate" last_modification_time="Sat, 19 Mar 2005 05:52:47 GMT"/>
@@ -1457,6 +1500,7 @@
 			      <child>
 				<widget class="GtkMenuItem" id="qline">
 				  <property name="visible">True</property>
+				  <property name="tooltip" translatable="yes">Search for calls that create a setup of a 1/4 line.</property>
 				  <property name="label" translatable="yes">1/4 line</property>
 				  <property name="use_underline">True</property>
 				  <signal name="activate" handler="on_qline_activate" last_modification_time="Sat, 19 Mar 2005 05:52:47 GMT"/>
@@ -1466,6 +1510,7 @@
 			      <child>
 				<widget class="GtkMenuItem" id="_3qline">
 				  <property name="visible">True</property>
+				  <property name="tooltip" translatable="yes">Search for calls that create a setup of a 3/4 line.</property>
 				  <property name="label" translatable="yes">3/4 line</property>
 				  <property name="use_underline">True</property>
 				  <signal name="activate" handler="on__3qline_activate" last_modification_time="Sat, 19 Mar 2005 05:52:47 GMT"/>
@@ -1475,6 +1520,7 @@
 			      <child>
 				<widget class="GtkMenuItem" id="any_qtag">
 				  <property name="visible">True</property>
+				  <property name="tooltip" translatable="yes">Search for calls that create a setup of any general 1/4 tag.</property>
 				  <property name="label" translatable="yes">Any 1/4 tag</property>
 				  <property name="use_underline">True</property>
 				  <signal name="activate" handler="on_any_qtag_activate" last_modification_time="Sat, 19 Mar 2005 05:52:47 GMT"/>
@@ -1508,12 +1554,13 @@
 		      <child>
 			<widget class="GtkImageMenuItem" id="help_manual">
 			  <property name="visible">True</property>
+			  <property name="tooltip" translatable="yes">Browse the Sd manual, in html format, using your selected browser.</property>
 			  <property name="label" translatable="yes">Help _Manual</property>
 			  <property name="use_underline">True</property>
 			  <signal name="activate" handler="on_help_manual_activate" last_modification_time="Sat, 19 Mar 2005 05:52:47 GMT"/>
 
 			  <child internal-child="image">
-			    <widget class="GtkImage" id="image7">
+			    <widget class="GtkImage" id="image11">
 			      <property name="visible">True</property>
 			      <property name="stock">gtk-help</property>
 			      <property name="icon_size">1</property>
@@ -1529,12 +1576,13 @@
 		      <child>
 			<widget class="GtkImageMenuItem" id="help_faq">
 			  <property name="visible">True</property>
+			  <property name="tooltip" translatable="yes">Browse the Frequently Asked Questions file, in html format, using your selected browser.</property>
 			  <property name="label" translatable="yes">Frequently Asked _Questions</property>
 			  <property name="use_underline">True</property>
 			  <signal name="activate" handler="on_help_faq_activate" last_modification_time="Mon, 21 Mar 2005 02:54:13 GMT"/>
 
 			  <child internal-child="image">
-			    <widget class="GtkImage" id="image8">
+			    <widget class="GtkImage" id="image12">
 			      <property name="visible">True</property>
 			      <property name="stock">gtk-jump-to</property>
 			      <property name="icon_size">1</property>
@@ -1731,7 +1779,7 @@
 			      <property name="rules_hint">True</property>
 			      <property name="reorderable">False</property>
 			      <property name="enable_search">True</property>
-			      <signal name="button_press_event" handler="on_main_cmds_button_press_event" after="no" last_modification_time="Tue, 22 Mar 2005 07:46:46 GMT"/>
+			      <signal name="button_press_event" handler="on_main_cmds_button_press_event" last_modification_time="Tue, 22 Mar 2005 07:46:46 GMT"/>
 			    </widget>
 			  </child>
 			</widget>

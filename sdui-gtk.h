@@ -26,7 +26,7 @@ on_file_print_activate                 (GtkMenuItem     *menuitem,
                                         gpointer         user_data);
 
 void
-on_print_any_file_activate             (GtkMenuItem     *menuitem,
+on_file_print_any_activate             (GtkMenuItem     *menuitem,
                                         gpointer         user_data);
 
 void
@@ -149,10 +149,6 @@ on_level_call_activate                 (GtkMenuItem     *menuitem,
 
 void
 on_8_person_level_call_activate        (GtkMenuItem     *menuitem,
-                                        gpointer         user_data);
-
-void
-on_create_setup_activate               (GtkMenuItem     *menuitem,
                                         gpointer         user_data);
 
 void

@@ -40,6 +40,7 @@
 #include "paths.h"
 #include "sdui-ico.h"
 #include "sdui-bmp.h"
+#include "resource.h" // for menu command constants
 extern "C" {
 #include "sdui-gtk.h" /* GLADE callback function prototypes */
 // misc. prototypes.
@@ -49,6 +50,7 @@ static void stash_away_sd_options(poptContext con,
 				  enum poptCallbackReason reason,
 				  const struct poptOption *opt,
 				  const char *args, void * data);
+static void use_computed_match(void);
 }
 
 // GLADE interface definitions
@@ -720,23 +722,6 @@ static void about_open_url(GtkAboutDialog *about,
    }
 }
 void
-on_help_manual_activate(GtkMenuItem *menuitem, gpointer user_data) {
-   gg->help_manual();
-}
-void
-on_help_faq_activate(GtkMenuItem *menuitem, gpointer user_data) {
-   gg->help_faq();
-}
-void
-on_file_quit_activate(GtkMenuItem *menuitem, gpointer user_data) {
-   // send delete event to window; borrowed from send_delete_event in gtkplug.c
-   GdkEvent *event = gdk_event_new (GDK_DELETE);
-   event->any.window = window_main->window;
-   event->any.send_event = TRUE;
-   gtk_widget_event (window_main, event);
-   gdk_event_free (event);
-}
-void
 on_main_entry_changed(GtkEditable *editable, gpointer user_data) {
    check_text_change(false);
 }
@@ -902,7 +887,9 @@ on_main_accept_clicked(GtkButton *button, gpointer user_data) {
 			 1, &(user_match.match.index),
 			 2, &(user_match.match.kind), -1);
 
-   use_computed_match:
+      use_computed_match();
+}
+static void use_computed_match(void) {
 
       user_match.match.packed_next_conc_or_subcall = 0;
       user_match.match.packed_secondary_subcall = 0;
@@ -940,19 +927,93 @@ on_main_accept_clicked(GtkButton *button, gpointer user_data) {
 
       WaitingForCommand = false;
 }
-/// 1546
-
-
-// extra stuff:
-void
-on_choose_font_for_printing_activate   (GtkMenuItem     *menuitem,
-                                        gpointer         user_data) {
-   gint result;
-   gtk_widget_show(window_font);
-   result = gtk_dialog_run(GTK_DIALOG(window_font));
-   gtk_widget_hide(window_font);
-   //XXX do something with this font.
+static void do_menu(int id) {
+      int i;
+      if (nLastOne == match_startup_commands) {
+         for (i=0 ; startup_menu[i].startup_name ; i++) {
+            if (id == startup_menu[i].resource_id) {
+               user_match.match.index = i;
+               user_match.match.kind = ui_start_select;
+	       use_computed_match();
+	       return;
+            }
+         }
+      }
+      else if (nLastOne >= 0) {
+         for (i=0 ; command_menu[i].command_name ; i++) {
+            if (id == command_menu[i].resource_id) {
+               user_match.match.index = i;
+               user_match.match.kind = ui_command_select;
+	       use_computed_match();
+	       return;
+            }
+         }
+      }
+      else
+	 // do nothing.
+	  return;
 }
+#define MENU(handler, command_index) \
+void handler(GtkMenuItem *menuitem, gpointer user_data) { \
+   do_menu(command_index); \
+}
+MENU(on_choose_font_for_printing_activate, ID_FILE_CHOOSE_FONT);
+MENU(on_file_print_activate, ID_FILE_PRINTTHIS);
+MENU(on_file_print_any_activate, ID_FILE_PRINTFILE);
+MENU(on_file_quit_activate, ID_FILE_EXIT);
+MENU(on_edit_cut_activate, ID_COMMAND_CUT_TEXT);
+MENU(on_edit_copy_activate, ID_COMMAND_COPY_TEXT);
+//MENU(on_edit_clear_activate, ID_COMMAND_CLEAR_TEXT);
+MENU(on_cut_one_call_activate, ID_COMMAND_CLIPBOARD_CUT);
+MENU(on_paste_one_call_activate, ID_COMMAND_CLIPBOARD_PASTE_ONE);
+MENU(on_paste_all_calls_activate, ID_COMMAND_CLIPBOARD_PASTE_ALL);
+MENU(on_delete_one_call_from_clipboard_activate, ID_COMMAND_CLIPBOARD_DEL_ONE);
+MENU(on_delete_all_calls_from_clipboard_activate,ID_COMMAND_CLIPBOARD_DEL_ALL);
+MENU(on_undo_last_call_activate, ID_COMMAND_UNDO);
+MENU(on_abort_this_sequence_activate, ID_COMMAND_ABORTTHISSEQUENCE);
+MENU(on_end_this_sequence_activate, ID_COMMAND_ENDTHISSEQUENCE);
+MENU(on_write_this_sequence_activate, ID_COMMAND_ENDTHISSEQUENCE);
+MENU(on_insert_a_comment_activate, ID_COMMAND_COMMENT);
+MENU(on_toggle_concept_levels_activate, ID_COMMAND_TOGGLE_CONC);
+MENU(on_toggle_active_phantoms_activate, ID_COMMAND_TOGGLE_PHAN);
+MENU(on_discard_entered_concepts_activate, ID_COMMAND_DISCARD_CONCEPT);
+MENU(on_change_output_file_activate, ID_COMMAND_CH_OUTFILE);
+MENU(on_change_title_activate, ID_COMMAND_CH_TITLE);
+MENU(on_keep_picture_activate, ID_COMMAND_KEEP_PICTURE);
+MENU(on_resolve_activate, ID_COMMAND_RESOLVE);
+MENU(on_normalize_activate, ID_COMMAND_NORMALIZE);
+MENU(on_reconcile_activate, ID_COMMAND_RECONCILE);
+MENU(on_standardize_activate, ID_COMMAND_STANDARDIZE);
+MENU(on_random_call_activate, ID_COMMAND_PICK_RANDOM);
+MENU(on_simple_call_activate, ID_COMMAND_PICK_SIMPLE);
+MENU(on_concept_call_activate, ID_COMMAND_PICK_CONCEPT);
+MENU(on_level_call_activate, ID_COMMAND_PICK_LEVEL);
+MENU(on_8_person_level_call_activate, ID_COMMAND_PICK_8P_LEVEL);
+MENU(on_waves_activate, ID_COMMAND_CREATE_WAVES);
+MENU(on_2_faced_lines_activate, ID_COMMAND_CREATE_2FL);
+MENU(on_lines_in_activate, ID_COMMAND_CREATE_LINESIN);
+MENU(on_lines_out_activate, ID_COMMAND_CREATE_LINESOUT);
+MENU(on_inverted_lines_activate, ID_COMMAND_CREATE_INVLINES);
+MENU(on_3_and_1_lines_activate, ID_COMMAND_CREATE_3N1LINES);
+MENU(on_any_lines_activate, ID_COMMAND_CREATE_ANYLINES);
+MENU(on_columns_activate, ID_COMMAND_CREATE_COLUMNS);
+MENU(on_magic_columns_activate, ID_COMMAND_CREATE_MAGCOL);
+MENU(on_dpt_activate, ID_COMMAND_CREATE_DPT);
+MENU(on_cdpt_activate, ID_COMMAND_CREATE_CDPT);
+MENU(on_8_chain_activate, ID_COMMAND_CREATE_8CH);
+MENU(on_trade_by_activate, ID_COMMAND_CREATE_TRBY);
+MENU(on_any_columns_activate, ID_COMMAND_CREATE_ANYCOLS);
+MENU(on_tidal_wave_activate, ID_COMMAND_CREATE_GWV);
+MENU(on_any_tidal_setup_activate, ID_COMMAND_CREATE_ANY_TIDAL);
+MENU(on_diamonds_activate, ID_COMMAND_CREATE_DMD);
+MENU(on_qtag_activate, ID_COMMAND_CREATE_QTAG);
+MENU(on__3qtag_activate, ID_COMMAND_CREATE_3QTAG);
+MENU(on_qline_activate, ID_COMMAND_CREATE_QLINE);
+MENU(on__3qline_activate, ID_COMMAND_CREATE_3QLINE);
+MENU(on_any_qtag_activate, ID_COMMAND_CREATE_ANY_QTAG);
+MENU(on_help_manual_activate, ID_HELP_SDHELP);
+MENU(on_help_faq_activate, ID_HELP_FAQ);
+/// 1578
 
 ////////// 1815
 static void setup_level_menu(GtkListStore *startup_list)
@@ -2179,7 +2240,11 @@ bool iofull::choose_font()
 #if 0
    GLOBprinter->choose_font();
 #else
-   assert(0); // unimplemented
+   gint result;
+   gtk_widget_show(window_font);
+   result = gtk_dialog_run(GTK_DIALOG(window_font));
+   gtk_widget_hide(window_font);
+   //XXX do something with this font.
 #endif
    return true;
 }
@@ -2242,6 +2307,7 @@ void iofull::serious_error_print(Cstring s1)
 
 void iofull::terminate(int code)
 {
+   GdkEvent *event;
    if (window_main) {
       // Check whether we should write out the transcript file.
       if (code == 0 && wrote_a_sequence) {
@@ -2255,7 +2321,13 @@ void iofull::terminate(int code)
 #endif
       }
 
-      on_file_quit_activate(NULL, NULL);
+      // send delete event to window; borrowed from send_delete_event
+      // in gtkplug.c
+      event = gdk_event_new (GDK_DELETE);
+      event->any.window = window_main->window;
+      event->any.send_event = TRUE;
+      gtk_widget_event (window_main, event);
+      gdk_event_free (event);
    }
 
    if (ico_pixbuf)
