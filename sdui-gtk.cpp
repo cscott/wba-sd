@@ -75,8 +75,6 @@ struct DisplayType {
    DisplayType *Prev;
 };
 
-static char szOutFilename     [MAX_TEXT_LINE_LENGTH];
-static char szDatabaseFilename[MAX_TEXT_LINE_LENGTH];
 static char szResolveWndTitle [MAX_TEXT_LINE_LENGTH];
 
 // This is the last title sent by the main program.  We add stuff to it.
@@ -256,13 +254,13 @@ void iofull::final_initialize() { assert(0); }
 static void setup_level_menu(GtkListStore *startup_list)
 {
    GtkTreeIter iter;
-   int lev;
+   int lev, i=0;
 
    for (lev=(int)l_mainstream ; ; lev++) {
       Cstring this_string = getout_strings[lev];
       if (!this_string[0]) break;
       gtk_list_store_insert_with_values(startup_list, &iter, G_MAXINT,
-					0, this_string, -1);
+					0, i++, 1, this_string, -1);
    }
 }
 
@@ -303,6 +301,19 @@ static Cstring session_error_msg = NULL;
 
 // Process Startup dialog box messages.
 
+
+gboolean
+on_startup_list_button_press_event     (GtkWidget       *widget,
+                                        GdkEventButton  *event,
+                                        gpointer         user_data)
+{
+   if (event->type != GDK_2BUTTON_PRESS)
+      return FALSE; /* not a double-click, ignore. */
+   /* double-click on session or level list item; treat as 'ok' click */
+   gtk_dialog_response(GTK_DIALOG(window_startup), GTK_RESPONSE_OK);
+   return TRUE; /* okay, I handled this. */
+}
+
 void
 on_abridge_changed                     (GtkButton        *button,
                                         gpointer         user_data)
@@ -341,6 +352,185 @@ on_calldb_changed                      (GtkButton       *button,
       else
 	 gnome_file_entry_set_filename(db_file, "database.txt");
    }
+}
+
+void
+on_startup_list_selection_changed(GtkTreeSelection *selection, gpointer data)
+{
+   // enable 'ok' button iff there is a selection.
+   gboolean result = gtk_tree_selection_get_selected(selection, NULL, NULL);
+   gtk_dialog_set_response_sensitive(GTK_DIALOG(window_startup),
+				     GTK_RESPONSE_OK, result);
+}
+
+static gboolean startup_accept()
+{
+   gchar *output_filename;
+   GtkTreeSelection *select;
+   GtkTreeModel *model;
+   GtkTreeIter iter;
+   gboolean result;
+   int i;
+      /* User hit the "accept" button.  Read out all the information.
+         But it's more complicated than that.  We sometimes do a two-stage
+         presentation of this dialog, getting the session number and then
+         the level.  So we may have to go back to the second stage.
+         The variable "dialog_menu_type" tells what we were getting. */
+
+   select = gtk_tree_view_get_selection(GTK_TREE_VIEW(SDG("startup_list")));
+   result = gtk_tree_selection_get_selected(select, &model, &iter);
+   assert(result);
+   gtk_tree_model_get(model, &iter, 0, &i, -1); /* get selected index */
+
+      if (dialog_menu_type == dialog_session) {
+         /* The user has just responded to the session selection.
+            Figure out what to do.  We may need to go back and get the
+            level. */
+
+         session_index = i;
+
+         // If the user wants that session deleted, do that, and get out
+         // immediately.  Setting the number to zero will cause it to
+         // be deleted when the session file is updated during program
+         // termination.
+
+	 if (gtk_toggle_button_get_active
+	     (GTK_TOGGLE_BUTTON(SDG("startup_session_delete")))) {
+            session_index = -session_index;
+            request_deletion = true;
+            goto getoutahere;
+         }
+
+         // If the user selected the button for canceling the abridgement
+         // on the current session, do so.
+
+	 if (gtk_toggle_button_get_active
+	     (GTK_TOGGLE_BUTTON(SDG("startup_abridge_cancel"))))
+            glob_abridge_mode = abridge_mode_deleting_abridge;
+
+         // Analyze the indicated session number.
+
+         int session_info = process_session_info(&session_error_msg);
+
+         if (session_info & 1) {
+            // We are not using a session, either because the user selected
+            // "no session", or because of some error in processing the
+            // selected session.
+            session_index = 0;
+            sequence_number = -1;
+         }
+
+         if (session_info & 2)
+            gg->serious_error_print(session_error_msg);
+
+         // If the level never got specified, either from a command line
+         // argument or from the session file, put up the level selection
+         // screen and go back for another round.
+
+         if (calling_level == l_nonexistent_concept) {
+	    return FALSE;
+         }
+      }
+      else if (dialog_menu_type == dialog_level) {
+         // Either there was no session file, or there was a session
+         // file but the user selected no session or a new session.
+         // In the latter case, we went back and asked for the level.
+         // So now we have both, and we can proceed.
+         calling_level = (dance_level) i;
+         strncat(outfile_string, filename_strings[calling_level], MAX_FILENAME_LENGTH);
+      }
+
+      // If a session was selected, and that session specified
+      // an abridgement file, that file overrides what the buttons
+      // and the abridgement file name edit box specify.
+
+      if (glob_abridge_mode != abridge_mode_abridging) {
+	 if (gtk_toggle_button_get_active
+	     (GTK_TOGGLE_BUTTON(SDG("startup_abridge_abridge"))))
+            glob_abridge_mode = abridge_mode_abridging;
+	 else if (gtk_toggle_button_get_active
+		  (GTK_TOGGLE_BUTTON(SDG("startup_abridge_write"))))
+            glob_abridge_mode = abridge_mode_writing;
+	 else if (gtk_toggle_button_get_active
+		  (GTK_TOGGLE_BUTTON(SDG("startup_abridge_write_full"))))
+            glob_abridge_mode = abridge_mode_writing_full;
+	 else if (gtk_toggle_button_get_active
+		  (GTK_TOGGLE_BUTTON(SDG("startup_abridge_normal"))))
+            glob_abridge_mode = abridge_mode_none;
+
+         // If the user specified a call list file, get the name.
+
+         if (glob_abridge_mode >= abridge_mode_abridging) {
+	    char *call_list_filename;
+
+            // This may have come from the command-line switches,
+            // in which case we already have the file name.
+
+	    call_list_filename = gnome_file_entry_get_full_path
+	       (GNOME_FILE_ENTRY(SDG("fileentry_abridge")), FALSE);
+ 
+	    if (call_list_filename) {
+	       if (call_list_filename[0])
+		  snprintf(abridge_filename, sizeof(abridge_filename), "%s",
+			   call_list_filename);
+	       g_free(call_list_filename);
+	    }
+         }
+      }
+      else if (gtk_toggle_button_get_active
+	       (GTK_TOGGLE_BUTTON(SDG("startup_abridge_abridge")))) {
+         // But if the session specified an abridgement file, and the user
+         // also clicked the button for abridgement and gave a file name,
+         // use that file name, overriding what was in the session line.
+
+	 gchar *call_list_filename;
+
+	 call_list_filename = gnome_file_entry_get_full_path
+	    (GNOME_FILE_ENTRY(SDG("fileentry_abridge")), FALSE);
+	 
+	 if (call_list_filename) {
+	    if (call_list_filename[0])
+	       snprintf(abridge_filename, sizeof(abridge_filename), "%s",
+			call_list_filename);
+	    g_free(call_list_filename);
+	 }
+      }
+
+      // If user specified the output file during startup dialog, install that.
+      // It overrides anything from the command line.
+
+      output_filename = gnome_file_entry_get_full_path
+	 (GNOME_FILE_ENTRY(SDG("fileentry_output")), FALSE);
+
+      if (output_filename) {
+	 if (output_filename[0])
+	    new_outfile_string = output_filename;//never freed;stored in static
+	 else
+	    g_free(output_filename);
+      }
+
+      // Handle user-specified database file.
+
+      if (gtk_toggle_button_get_active
+	       (GTK_TOGGLE_BUTTON(SDG("startup_db_user")))) {
+	 gchar *db_filename;
+	 db_filename = gnome_file_entry_get_full_path
+	    (GNOME_FILE_ENTRY(SDG("fileentry_db")), TRUE);
+	 if (db_filename) {
+	    if (db_filename[0])
+	       database_filename = db_filename;//never freed;stored in static
+	    else
+	       g_free(db_filename);
+	 }
+      }
+
+      ui_options.sequence_num_override =
+	 gtk_spin_button_get_value_as_int
+	 (GTK_SPIN_BUTTON(SDG("seq_num_override")));
+
+   getoutahere:
+
+      return TRUE;
 }
 
 static void startup_init()
@@ -406,7 +596,7 @@ static void startup_init()
    // depending on whether a session file is in use.
 
    if (!startup_list) {
-      startup_list = gtk_list_store_new (1, G_TYPE_STRING);
+      startup_list = gtk_list_store_new (2, G_TYPE_INT, G_TYPE_STRING);
       gtk_tree_view_set_model(GTK_TREE_VIEW(SDG("startup_list")),
 			      GTK_TREE_MODEL(startup_list));
    } else {
@@ -422,6 +612,7 @@ static void startup_init()
    if (ui_options.force_session == -1000000 && !get_first_session_line()) {
       char line[MAX_FILENAME_LENGTH];
       GtkTreeIter iter;
+      int i=0;
 
       gtk_label_set_markup(GTK_LABEL(SDG("startup_caption")),
 			   "<b>Choose a session:</b>");
@@ -437,7 +628,7 @@ static void startup_init()
 
       while (get_next_session_line(line))
 	 gtk_list_store_insert_with_values(startup_list, &iter, G_MAXINT,
-					   0, line, -1);
+					   0, i++, 1, line, -1);
       dialog_menu_type = dialog_session;
    }
    else if (calling_level == l_nonexistent_concept) {
@@ -455,6 +646,8 @@ static void startup_init()
       dialog_menu_type = dialog_none;
    }
    gtk_tree_selection_unselect_all(ts);
+   gtk_dialog_set_response_sensitive(GTK_DIALOG(window_startup),
+				     GTK_RESPONSE_OK, FALSE);
 }
 
 bool iofull::init_step(init_callback_state s, int n)
@@ -502,16 +695,19 @@ bool iofull::init_step(init_callback_state s, int n)
 
       if (ui_options.force_session == -1000000) {
 	 gint result;
-	 startup_init();
-	 gtk_widget_show(window_startup);
-	 result = gtk_dialog_run(GTK_DIALOG(window_startup));
-	 if (result!=GTK_RESPONSE_ACCEPT) {
+	 do {
+	    startup_init();
+	    gtk_widget_show(window_startup);
+	    result = gtk_dialog_run(GTK_DIALOG(window_startup));
+	    gtk_widget_hide(window_startup);
+	 } while (result==GTK_RESPONSE_OK && !startup_accept());
+	 if (result!=GTK_RESPONSE_OK) {
 	    // User hit the "cancel" button.
 	    session_index = 0;  // Prevent attempts to update session file.
 	    general_final_exit(0);
             gg->fatal_error_exit(1, "Startup cancelled", "");
 	 }
-	 gtk_widget_hide(window_startup);
+	 // user hit 'accept'; all done.
       }
 
       if (request_deletion) return true;
@@ -769,6 +965,7 @@ static const struct poptOption all_options[] = {
 
 int main(int argc, char **argv) {
    GtkCellRenderer *renderer;
+   GtkTreeView *startup_list;
    GtkTreeViewColumn *column;
    // Set the UI options for Sd.
 
@@ -793,13 +990,17 @@ int main(int argc, char **argv) {
    window_startup = SDG("dialog_startup");
    window_main = SDG("app_main");
 
+   startup_list = GTK_TREE_VIEW(SDG("startup_list"));
    renderer = gtk_cell_renderer_text_new();
    column = gtk_tree_view_column_new_with_attributes("Level/Session",renderer,
-						     "text", 0, NULL);
-   gtk_tree_view_append_column(GTK_TREE_VIEW(SDG("startup_list")), column);
+						     "text", 1, NULL);
+   gtk_tree_view_append_column(startup_list, column);
    column = gtk_tree_view_column_new_with_attributes("Commands", renderer,
 						     "text", 0, NULL);
    gtk_tree_view_append_column(GTK_TREE_VIEW(SDG("main_cmds")), column);
+   g_signal_connect
+      (G_OBJECT(gtk_tree_view_get_selection(startup_list)),
+       "changed", G_CALLBACK(on_startup_list_selection_changed), NULL);
 
    /* Load the (inlined) sd icon. */
    ico_pixbuf = gdk_pixbuf_new_from_inline (-1, sdico_inline, FALSE, NULL);

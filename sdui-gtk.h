@@ -262,3 +262,8 @@ on_abridge_changed                     (GtkButton        *button,
 void
 on_calldb_changed                      (GtkButton       *button,
                                         gpointer         user_data);
+
+gboolean
+on_startup_list_button_press_event     (GtkWidget       *widget,
+                                        GdkEventButton  *event,
+                                        gpointer         user_data);
