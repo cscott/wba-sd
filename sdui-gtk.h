@@ -268,6 +268,9 @@ void
 on_startup_list_selection_changed(GtkTreeSelection *selection, gpointer data);
 
 void
+on_startup_output_select_clicked       (GtkButton       *button,
+                                        gpointer         user_data);
+void
 on_main_entry_changed                  (GtkEditable     *editable,
                                         gpointer         user_data);
 
@@ -292,4 +295,8 @@ on_main_cancel_clicked                 (GtkButton       *button,
 gboolean
 on_app_main_delete_event               (GtkWidget       *widget,
                                         GdkEvent        *event,
+                                        gpointer         user_data);
+
+void
+on_outfile_use_clicked                 (GtkButton       *button,
                                         gpointer         user_data);

@@ -53,11 +53,14 @@ static void stash_away_sd_options(poptContext con,
 				  const struct poptOption *opt,
 				  const char *args, void * data);
 static void use_computed_match(void);
+static popup_return do_outfile_popup_with_default(gchar *dest, gsize size,
+						  const gchar *old_outfile);
 }
 
 // GLADE interface definitions
 static GladeXML *sd_xml;
 static GtkWidget *window_startup, *window_main, *window_font, *window_text;
+static GtkWidget *window_outfile;
 static GdkPixbuf *ico_pixbuf;
 static GtkTextBuffer *main_buffer;
 #define SDG(widget_name) (glade_xml_get_widget(sd_xml, (widget_name)))
@@ -600,6 +603,7 @@ int main(int argc, char **argv) {
    window_main = SDG("app_main");
    window_text = SDG("dialog_text");
    window_font = SDG("dialog_font");
+   window_outfile = SDG("dialog_outfile");
 
    /* Hide the progress bar (initially) */
    gtk_widget_hide(GTK_WIDGET(gnome_appbar_get_progress
@@ -649,6 +653,7 @@ int main(int argc, char **argv) {
    gtk_dialog_set_default_response(GTK_DIALOG(window_startup),GTK_RESPONSE_OK);
    gtk_dialog_set_default_response(GTK_DIALOG(window_text), GTK_RESPONSE_OK);
    gtk_dialog_set_default_response(GTK_DIALOG(window_font), GTK_RESPONSE_OK);
+   gtk_dialog_set_default_response(GTK_DIALOG(window_outfile),GTK_RESPONSE_OK);
    
    /* connect the signals in the interface */
    glade_xml_signal_autoconnect(sd_xml);
@@ -1279,9 +1284,19 @@ on_startup_list_selection_changed(GtkTreeSelection *selection, gpointer data)
 				     GTK_RESPONSE_OK, result);
 }
 
+
+void
+on_startup_output_select_clicked(GtkButton *button, gpointer user_data) {
+   GtkEntry *entry = GTK_ENTRY(SDG("startup_output_text"));
+   gchar buf[MAX_FILENAME_LENGTH];
+   if (POPUP_ACCEPT_WITH_STRING == do_outfile_popup_with_default
+       (buf, sizeof(buf), gtk_entry_get_text(entry)))
+      gtk_entry_set_text(entry, buf);
+}
+
 static gboolean startup_accept()
 {
-   gchar *output_filename;
+   const gchar *output_filename;
    GtkTreeSelection *select;
    GtkTreeModel *model;
    GtkTreeIter iter;
@@ -1417,15 +1432,13 @@ static gboolean startup_accept()
       // If user specified the output file during startup dialog, install that.
       // It overrides anything from the command line.
 
-      output_filename = gnome_file_entry_get_full_path
-	 (GNOME_FILE_ENTRY(SDG("fileentry_output")), FALSE);
+      // return value is owned by the entry widget.
+      output_filename = gtk_entry_get_text
+	 (GTK_ENTRY(SDG("startup_output_text")));
 
-      if (output_filename) {
+      if (output_filename)
 	 if (output_filename[0])
-	    new_outfile_string = output_filename;//never freed;stored in static
-	 else
-	    g_free(output_filename);
-      }
+	    new_outfile_string = g_strdup(output_filename);
 
       // Handle user-specified database file.
 
@@ -1503,8 +1516,7 @@ static void startup_init()
 
    // Seed the various file names with the null string.
 
-   gnome_file_entry_set_filename
-	    (GNOME_FILE_ENTRY(SDG("fileentry_output")), "");
+   gtk_entry_set_text(GTK_ENTRY(SDG("startup_output_text")), "");
    gnome_file_entry_set_filename
 	    (GNOME_FILE_ENTRY(SDG("fileentry_db")), "");
 
@@ -2054,49 +2066,69 @@ popup_return iofull::do_comment_popup(char dest[])
 }
 
 void
-on_outfile_use_date_toggled(GtkToggleButton *toggle, gpointer user_data){
-   GtkFileChooser *chooser = GTK_FILE_CHOOSER(user_data);
-   if (gtk_toggle_button_get_active(toggle)) {
-      /* use current date */
-      gtk_file_chooser_set_action(chooser, GTK_FILE_CHOOSER_ACTION_SELECT_FOLDER);
-   } else {
-      /* don't use current date */
-      gtk_file_chooser_set_action(chooser, GTK_FILE_CHOOSER_ACTION_SAVE);
-   }
+on_outfile_use_clicked(GtkButton *button, gpointer user_data) {
+   gboolean use_date =
+      gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(SDG("outfile_use_date")));
+
+   gtk_widget_set_sensitive(SDG("outfile_star"), use_date);
+   gtk_widget_set_sensitive(SDG("outfile_fileentry"), !use_date);
+   gtk_widget_grab_focus
+      (use_date ? SDG("outfile_star") : SDG("outfile_fileentry") );
 }
 
-popup_return iofull::do_outfile_popup(char dest[])
-{
-   GtkWidget *dialog, *toggle;
+static popup_return
+do_outfile_popup_with_default(gchar *dest, gsize size,
+			      const gchar *old_outfile) {
+   GtkWidget *outfile_star = SDG("outfile_star");
+   GtkWidget *outfile_fileentry = SDG("outfile_fileentry");
+   GtkWidget *outfile_use_date = SDG("outfile_use_date");
+   GtkWidget *outfile_use_custom = SDG("outfile_use_custom");
+
    popup_return retval = POPUP_DECLINE;
 
-   dialog = gtk_file_chooser_dialog_new
-      ("Sequence output file name", GTK_WINDOW(window_main),
-       GTK_FILE_CHOOSER_ACTION_SAVE,
-       GTK_STOCK_CANCEL, GTK_RESPONSE_CANCEL,
-       GTK_STOCK_SAVE, GTK_RESPONSE_ACCEPT,
-       NULL);
-   toggle = gtk_check_button_new_with_label("Base filename on today's date");
-   gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(toggle), FALSE);
-   g_signal_connect(G_OBJECT(toggle), "toggled",
-		    G_CALLBACK(on_outfile_use_date_toggled), dialog);
-   gtk_file_chooser_set_extra_widget(GTK_FILE_CHOOSER(dialog), toggle);
-   gtk_widget_show(toggle);
-
-   gtk_file_chooser_set_current_name(GTK_FILE_CHOOSER(dialog), outfile_string);
-   if (gtk_dialog_run (GTK_DIALOG (dialog)) == GTK_RESPONSE_ACCEPT) {
-      char *filename;
-      filename = gtk_file_chooser_get_filename (GTK_FILE_CHOOSER (dialog));
-      g_strlcpy(dest, filename, MAX_FILENAME_LENGTH);
-      g_free (filename);
+   // reset 'standard' defaults.
+   gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(outfile_star), TRUE);
+   gnome_file_entry_set_filename(GNOME_FILE_ENTRY(outfile_fileentry), "");
+      
+   // setup values based on given default string
+   if ((old_outfile[0]=='+' || old_outfile[0]=='*') && old_outfile[1]==0) {
+      // special '*' or '+' filename.
+      gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(outfile_use_date), TRUE);
+      gtk_toggle_button_set_active
+	 (GTK_TOGGLE_BUTTON(outfile_star), (old_outfile[0]=='*'));
+   } else {
+      // custom filename
+      gtk_toggle_button_set_active
+	 (GTK_TOGGLE_BUTTON(outfile_use_custom), TRUE);
+      gnome_file_entry_set_filename
+	 (GNOME_FILE_ENTRY(outfile_fileentry), old_outfile);
+   }
+   gtk_widget_show(window_outfile);
+   if (GTK_RESPONSE_OK == gtk_dialog_run(GTK_DIALOG(window_outfile))) {
+      if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(outfile_use_date)))
+	 if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(outfile_star)))
+	    g_strlcpy(dest, "*", size);
+	 else
+	    g_strlcpy(dest, "+", size);
+      else {
+	 char *path;
+	 path = gnome_file_entry_get_full_path
+	    (GNOME_FILE_ENTRY(outfile_fileentry), FALSE);
+	 if (path && path[0]==10 && path[1]==0)
+	    path[0] = 0; // weird work-around
+	 g_strlcpy(dest, path?path:"", size);
+	 g_free (path);
+      }
       retval = POPUP_ACCEPT_WITH_STRING;
    }
-   
-   gtk_widget_destroy (dialog);
-   /*"Enter new name (or '+' to base it on today's date):"*/
+   gtk_widget_hide(window_outfile);
    return retval;
 }
-
+popup_return iofull::do_outfile_popup(char dest[])
+{
+   return do_outfile_popup_with_default
+      (dest, MAX_FILENAME_LENGTH, outfile_string);
+}
 
 popup_return iofull::do_header_popup(char dest[])
 {
@@ -2505,4 +2537,3 @@ void
 on_edit_clear_activate(GtkMenuItem *menuitem, gpointer user_data) {
     g_warning("Unimplemented");
 }
-
