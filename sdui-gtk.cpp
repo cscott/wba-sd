@@ -617,6 +617,9 @@ int main(int argc, char **argv) {
    column = gtk_tree_view_column_new_with_attributes("Sequence #",renderer,
 						     "text", 3, NULL);
    gtk_tree_view_append_column(startup_list, column);
+   column = gtk_tree_view_column_new_with_attributes("Description",renderer,
+						     "text", 4, NULL);
+   gtk_tree_view_append_column(startup_list, column);
    column = gtk_tree_view_column_new_with_attributes("Commands", renderer,
 						     "text", 0, NULL);
    gtk_tree_view_append_column(GTK_TREE_VIEW(SDG("main_cmds")), column);
@@ -1099,27 +1102,33 @@ static void setup_session_menu(void)
    
    // create and set tree model and view.
    startup_list = gtk_list_store_new
-      (4, G_TYPE_INT, G_TYPE_STRING, G_TYPE_STRING, G_TYPE_STRING);
+      (5, G_TYPE_INT,
+       G_TYPE_STRING, G_TYPE_STRING, G_TYPE_STRING, G_TYPE_STRING);
       
    while (get_next_session_line(line)) {
       char filename[strlen(line)+1], session_level[strlen(line)+1];
+      char session_desc[strlen(line)+1];
       char sequence_number[10] = { '\0' };
-      int num_fields, txt_start, item_no, seq_no;
-      num_fields = sscanf(line, "%d %n%s %s %d", &item_no, &txt_start,
-			  filename, session_level, &seq_no);
+      int num_fields, txt_start, item_no, seq_no, desc_off;
+      num_fields = sscanf(line, "%d %n%s %s %d %n", &item_no, &txt_start,
+			  filename, session_level, &seq_no, &desc_off);
       if (num_fields < 4) {
 	 strncpy(filename, line+txt_start, sizeof(filename));
-	 session_level[0]=0;
-	 sequence_number[0]=0;
-      } else
+	 session_level[0]=sequence_number[0]=session_desc[0]=0;
+      } else {
 	 snprintf(sequence_number, sizeof(sequence_number), "%d", seq_no);
+	 strncpy(session_desc, line+desc_off, sizeof(session_desc));
+	 g_strchomp(session_desc);
+      }
       gtk_list_store_insert_with_values
 	 (startup_list, &iter, G_MAXINT,
-	  0, i++, 1, filename, 2, session_level, 3, sequence_number, -1);
+	  0, i++, 1, filename, 2, session_level, 3, sequence_number, 
+	  4, session_desc, -1);
    }
    gtk_tree_view_set_model(tv, GTK_TREE_MODEL(startup_list));
    gtk_tree_view_column_set_visible(gtk_tree_view_get_column(tv, 0), TRUE);
    gtk_tree_view_column_set_visible(gtk_tree_view_get_column(tv, 2), TRUE);
+   gtk_tree_view_column_set_visible(gtk_tree_view_get_column(tv, 3), TRUE);
    gtk_tree_view_set_headers_visible(tv, TRUE);
    gtk_tree_view_columns_autosize(tv);
 }
@@ -1142,7 +1151,8 @@ static void setup_level_menu(void)
 
    // create and set tree model and view.
    startup_list = gtk_list_store_new
-      (4, G_TYPE_INT, G_TYPE_STRING, G_TYPE_STRING, G_TYPE_STRING);
+      (5, G_TYPE_INT,
+       G_TYPE_STRING, G_TYPE_STRING, G_TYPE_STRING, G_TYPE_STRING);
 
    for (lev=(int)l_mainstream ; ; lev++) {
       Cstring this_string = getout_strings[lev];
@@ -1152,6 +1162,7 @@ static void setup_level_menu(void)
    }
    gtk_tree_view_column_set_visible(gtk_tree_view_get_column(tv, 0), FALSE);
    gtk_tree_view_column_set_visible(gtk_tree_view_get_column(tv, 2), FALSE);
+   gtk_tree_view_column_set_visible(gtk_tree_view_get_column(tv, 3), FALSE);
    gtk_tree_view_set_model(tv, GTK_TREE_MODEL(startup_list));
    gtk_tree_view_set_headers_visible(tv, FALSE);
    gtk_tree_view_columns_autosize(tv);
@@ -1176,7 +1187,8 @@ void iofull::set_pick_string(const char *string)
 
 void iofull::set_window_title(char s[])
 {
-   g_snprintf(main_title, sizeof(main_title), "Sd %s", s);
+   g_snprintf(main_title, sizeof(main_title), "Sd %s",
+	      g_strdelimit(s,"\n\t\r",' '));
    SetTitle();
 }
 
