@@ -30,7 +30,7 @@ on_print_any_file_activate             (GtkMenuItem     *menuitem,
                                         gpointer         user_data);
 
 void
-on_quit_activate                       (GtkMenuItem     *menuitem,
+on_file_quit_activate                  (GtkMenuItem     *menuitem,
                                         gpointer         user_data);
 
 void
@@ -270,3 +270,20 @@ on_startup_list_button_press_event     (GtkWidget       *widget,
 
 void
 on_startup_list_selection_changed(GtkTreeSelection *selection, gpointer data);
+
+void
+on_main_entry_changed                  (GtkEditable     *editable,
+                                        gpointer         user_data);
+
+gboolean
+on_main_cmds_button_press_event        (GtkWidget       *widget,
+                                        GdkEventButton  *event,
+                                        gpointer         user_data);
+
+void
+on_main_accept_clicked                 (GtkButton       *button,
+                                        gpointer         user_data);
+
+void
+on_main_cancel_clicked                 (GtkButton       *button,
+                                        gpointer         user_data);

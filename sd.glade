@@ -920,7 +920,7 @@
 			<widget class="GtkImageMenuItem" id="quit1">
 			  <property name="visible">True</property>
 			  <property name="stock_item">GNOMEUIINFO_MENU_EXIT_ITEM</property>
-			  <signal name="activate" handler="on_quit_activate" last_modification_time="Mon, 21 Mar 2005 02:21:47 GMT"/>
+			  <signal name="activate" handler="on_file_quit_activate" last_modification_time="Mon, 21 Mar 2005 02:21:47 GMT"/>
 			</widget>
 		      </child>
 		    </widget>
@@ -1693,7 +1693,7 @@
 		      <property name="spacing">0</property>
 
 		      <child>
-			<widget class="GtkEntry" id="entry_cmd">
+			<widget class="GtkEntry" id="main_entry">
 			  <property name="visible">True</property>
 			  <property name="can_focus">True</property>
 			  <property name="editable">True</property>
@@ -1703,6 +1703,7 @@
 			  <property name="has_frame">True</property>
 			  <property name="invisible_char">*</property>
 			  <property name="activates_default">False</property>
+			  <signal name="changed" handler="on_main_entry_changed" last_modification_time="Tue, 22 Mar 2005 07:51:45 GMT"/>
 			</widget>
 			<packing>
 			  <property name="padding">1</property>
@@ -1730,6 +1731,7 @@
 			      <property name="rules_hint">True</property>
 			      <property name="reorderable">False</property>
 			      <property name="enable_search">True</property>
+			      <signal name="button_press_event" handler="on_main_cmds_button_press_event" after="no" last_modification_time="Tue, 22 Mar 2005 07:46:46 GMT"/>
 			    </widget>
 			  </child>
 			</widget>
@@ -1754,6 +1756,7 @@
 			      <property name="use_stock">True</property>
 			      <property name="relief">GTK_RELIEF_NORMAL</property>
 			      <property name="focus_on_click">False</property>
+			      <signal name="clicked" handler="on_main_accept_clicked" last_modification_time="Tue, 22 Mar 2005 07:47:51 GMT"/>
 			    </widget>
 			    <packing>
 			      <property name="padding">0</property>
@@ -1770,6 +1773,7 @@
 			      <property name="use_stock">True</property>
 			      <property name="relief">GTK_RELIEF_NORMAL</property>
 			      <property name="focus_on_click">False</property>
+			      <signal name="clicked" handler="on_main_cancel_clicked" last_modification_time="Tue, 22 Mar 2005 07:48:00 GMT"/>
 			    </widget>
 			    <packing>
 			      <property name="padding">0</property>

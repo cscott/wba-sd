@@ -3685,9 +3685,9 @@ extern SDLIB_API bool showing_has_stopped;                    // in SDMATCH
 extern SDLIB_API match_result GLOB_match;                     // in SDMATCH
 extern SDLIB_API bool GLOB_space_ok;                          // in SDMATCH
 extern SDLIB_API int GLOB_yielding_matches;                   // in SDMATCH
-extern SDLIB_API char GLOB_user_input[];                      // in SDMATCH
-extern SDLIB_API char GLOB_full_extension[];                  // in SDMATCH
-extern SDLIB_API char GLOB_echo_stuff[];                      // in SDMATCH
+extern SDLIB_API char GLOB_user_input[INPUT_TEXTLINE_SIZE+1]; // in SDMATCH
+extern SDLIB_API char GLOB_full_extension[INPUT_TEXTLINE_SIZE+1];// in SDMATCH
+extern SDLIB_API char GLOB_echo_stuff[INPUT_TEXTLINE_SIZE+1]; // in SDMATCH
 extern SDLIB_API int GLOB_user_input_size;                    // in SDMATCH
 
 extern SDLIB_API short int *concept_list;        /* indices of all concepts */

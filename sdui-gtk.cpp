@@ -42,6 +42,13 @@
 #include "sdui-bmp.h"
 extern "C" {
 #include "sdui-gtk.h" /* GLADE callback function prototypes */
+// misc. prototypes.
+static void about_open_url(GtkAboutDialog *about,
+			   const gchar *link, gpointer data);
+static void stash_away_sd_options(poptContext con,
+				  enum poptCallbackReason reason,
+				  const struct poptOption *opt,
+				  const char *args, void * data);
 }
 
 // GLADE interface definitions
@@ -83,9 +90,6 @@ static uims_reply MenuKind;
 // This is the last title sent by the main program.  We add stuff to it.
 static gchar main_title[MAX_TEXT_LINE_LENGTH];
 
-// misc. prototypes.
-static void about_open_url(GtkAboutDialog *about,
-			   const gchar *link, gpointer data);
 
 
 static void uims_bell()
@@ -99,16 +103,16 @@ static void UpdateStatusBar(const gchar *text)
    gchar buf[strlen(text)+15+16+12+14+11+13+1];
    assert(text);
 
-   snprintf(buf, sizeof(buf), "%s%s%s%s%s%s%s",
-	    ((allowing_modifications == 2) ? "all mods | " :
-	     (allowing_modifications ? "simple mods | " : "")),
-	    (allowing_all_concepts ? "all concepts | " : ""),
-	    (using_active_phantoms ? "act phan | " : ""),
-	    ((ui_options.singing_call_mode == 2) ? "rev singer | " :
-	     (ui_options.singing_call_mode ? "singer | " : "")),
-	    (ui_options.nowarn_mode ? "no warn | " : ""),
-	    (allowing_minigrand ? "minigrand | " : ""),
-	    text);
+   g_snprintf(buf, sizeof(buf), "%s%s%s%s%s%s%s",
+	      ((allowing_modifications == 2) ? "all mods | " :
+	       (allowing_modifications ? "simple mods | " : "")),
+	      (allowing_all_concepts ? "all concepts | " : ""),
+	      (using_active_phantoms ? "act phan | " : ""),
+	      ((ui_options.singing_call_mode == 2) ? "rev singer | " :
+	       (ui_options.singing_call_mode ? "singer | " : "")),
+	      (ui_options.nowarn_mode ? "no warn | " : ""),
+	      (allowing_minigrand ? "minigrand | " : ""),
+	      text);
    gnome_appbar_set_status(GNOME_APPBAR(SDG("main_appbar")), buf);
    gtk_update();
 }
@@ -130,12 +134,221 @@ static void erase_questionable_stuff()
 void iofull::show_match()
 {
    char szLocalString[MAX_TEXT_LINE_LENGTH];
-   snprintf(szLocalString, sizeof(szLocalString),
-	    "%s%s%s", GLOB_match.indent ? "   " : "", GLOB_user_input,
-	    GLOB_full_extension);
+   g_snprintf(szLocalString, sizeof(szLocalString),
+	      "%s%s%s", GLOB_match.indent ? "   " : "", GLOB_user_input,
+	      GLOB_full_extension);
    gg->add_new_line(szLocalString, 0);
 }
-/// 326
+
+
+static gint select_partial(char *partial) {
+   GtkTreeView *main_cmds;
+   GtkTreeModel *cmd_list;
+   GtkTreeIter iter;
+   gboolean valid;
+   gint idx=0, partial_len;
+
+   partial_len = strlen(partial);
+   if (!partial_len) return -1; // no matches for empty string.
+   main_cmds = GTK_TREE_VIEW(SDG("main_cmds"));
+   cmd_list = gtk_tree_view_get_model(main_cmds);
+   if (!cmd_list) return -1; // no model set yet.
+   valid = gtk_tree_model_get_iter_first(cmd_list, &iter);
+   while (valid) {
+      gchar *cmd;
+      gtk_tree_model_get(cmd_list, &iter, 0, &cmd, -1);
+      // check partial match.
+      if (strncasecmp(partial, cmd, partial_len)==0)
+	 return idx; // this is it.
+      g_free(cmd);
+      idx++;
+      valid = gtk_tree_model_iter_next(cmd_list, &iter);
+   }
+   // no match found.
+   return -1;
+}
+
+static gboolean warp_to_entry_end(gpointer data) {
+   gtk_editable_set_position(GTK_EDITABLE(data), -1);
+   return FALSE; // once only
+}
+static void check_text_change(bool doing_escape)
+{
+   char szLocalString[MAX_TEXT_LINE_LENGTH];
+   int nLen;
+   int nIndex;
+   char *p;
+   int matches;
+   bool changed_editbox = false;
+
+   // Find out what the text input box contains now.
+
+   p = g_utf8_strdown(gtk_entry_get_text(GTK_ENTRY(SDG("main_entry"))), -1);
+   g_snprintf(szLocalString, sizeof(szLocalString), "%s%n", p, &nLen);
+   g_free(p);
+   nLen--;     // Location of last character.
+
+   // Only process stuff if it changed from what we thought it was.
+   // Otherwise we would unnecessarily process changes that weren't typed
+   // by the user but were merely the stuff we put in due to completion.
+
+   if (doing_escape) {
+      nLen++;
+      matches = match_user_input(nLastOne, false, false, false);
+      user_match = GLOB_match;
+      p = GLOB_echo_stuff;
+      if (*p) {
+         changed_editbox = true;
+
+	 p = g_utf8_strdown(p, -1);
+	 nLen = g_strlcat(szLocalString, p, sizeof(szLocalString));
+	 nLen--;
+	 g_free(p);
+
+      }
+   }
+   else if (strcmp(szLocalString, GLOB_user_input)) {
+      if (nLen >= 0) {
+         char cCurChar = szLocalString[nLen];
+
+         if (cCurChar == '!' || cCurChar == '?') {
+	    GtkTextView *main_transcript;
+            szLocalString[nLen] = '\0';   // Erase the '?' itself.
+
+            // Before we start, erase any previous stuff.
+            erase_questionable_stuff();
+
+            // Next line used to be "nLen > 0" so that we wouldn't do this if
+            // the line was blank.  It was believed that the '?' operation
+            // was unwieldy if it printed absolutely everything.  Maybe it
+            // was when computers were slower.  But it seems fine now.
+            // In particular, on a 150 MHz machine (very slow in 2002),
+            // it takes less than 2 seconds to show the full output from
+            // a question mark at C4.
+            if (nLen > -33) {    // Don't do this on a blank line.
+	       GtkTextMark *start_mark, *end_mark;
+	       GtkTextIter iter;
+	       main_transcript = GTK_TEXT_VIEW(SDG("main_transcript"));
+	       gtk_text_buffer_get_end_iter(main_buffer, &iter);
+	       start_mark = gtk_text_buffer_create_mark
+		  (main_buffer, QUESTION_MARK, &iter, TRUE);
+
+	       g_snprintf(GLOB_user_input, sizeof(GLOB_user_input),
+			  "%s%n", szLocalString, &GLOB_user_input_size);
+               // This will call show_match with each match.
+               (void) match_user_input(nLastOne, true, cCurChar == '?', false);
+
+               // Restore the scroll position so that the user will see the start,
+               // not the end, of what we displayed.
+
+               // Don't hide stuff unnecessarily.  If we would have space to show
+               // some pre-existing text as well as all "?" output, do so.
+	       gtk_text_buffer_get_end_iter(main_buffer, &iter);
+	       end_mark = gtk_text_buffer_create_mark
+		  (main_buffer, NULL, &iter, FALSE);
+	       gtk_text_view_scroll_mark_onscreen(main_transcript, end_mark);
+	       gtk_text_view_scroll_mark_onscreen(main_transcript, start_mark);
+	       gtk_text_buffer_delete_mark(main_buffer, end_mark);
+               // Give focus to the transcript, so the user can scroll easily.
+	       gtk_widget_grab_focus(GTK_WIDGET(main_transcript));
+            }
+            changed_editbox = true;
+         }
+         else if (cCurChar == ' ' || cCurChar == '-') {
+            erase_questionable_stuff();
+	    g_snprintf(GLOB_user_input, sizeof(GLOB_user_input),
+		       "%s%n", szLocalString, &GLOB_user_input_size);
+	    GLOB_user_input[nLen] = '\0'; // chop off the space/hyphen
+            // Extend only to one space or hyphen, inclusive.
+            matches = match_user_input(nLastOne, false, false, true);
+            user_match = GLOB_match;
+            p = GLOB_echo_stuff;
+
+            if (*p) {
+               changed_editbox = true;
+
+               while (*p) {
+                  if (*p != ' ' && *p != '-') {
+                     szLocalString[nLen++] = *p++;
+                     szLocalString[nLen] = '\0';
+                  }
+                  else {
+                     szLocalString[nLen++] = cCurChar;
+                     szLocalString[nLen] = '\0';
+                     goto pack_us;
+                  }
+               }
+            }
+            else if (!GLOB_space_ok || matches <= 1) {
+               uims_bell();
+               szLocalString[nLen] = '\0';    // Do *not* pack the character.
+               changed_editbox = true;
+            }
+         }
+         else
+            erase_questionable_stuff();
+      }
+      else {
+         erase_questionable_stuff();
+         goto scroll_call_menu;
+      }
+   }
+   else {
+      goto scroll_call_menu;
+   }
+
+ pack_us:
+
+   p = g_utf8_strdown(szLocalString, -1);
+   g_snprintf(GLOB_user_input, sizeof(GLOB_user_input),
+	      "%s%n", p, &GLOB_user_input_size);
+   g_free(p);
+
+   // Write it back to the window.
+
+   if (changed_editbox) {
+      GtkEntry *main_entry = GTK_ENTRY(SDG("main_entry"));
+      g_signal_handlers_block_by_func
+	 (main_entry, (void*)on_main_entry_changed, NULL);
+      gtk_entry_set_text(main_entry, szLocalString);
+      g_signal_handlers_unblock_by_func
+	 (main_entry, (void*)on_main_entry_changed, NULL);
+      // This moves the cursor to the end of the text, apparently.
+      // TRICKY - have to do it *after* on_entry_changed() returns
+      // (signal is called before the key-insertion code finishes)
+      g_idle_add_full(G_PRIORITY_HIGH_IDLE, warp_to_entry_end,
+		      GTK_EDITABLE(main_entry), NULL);
+   }
+
+ scroll_call_menu:
+
+   // Search call menu for match on current string.
+   nIndex = select_partial(szLocalString);
+
+   if (nIndex >= 0) {
+      // If possible, scroll the call menu so that
+      // current selection remains centered.
+      GtkTreeView *main_cmds = GTK_TREE_VIEW(SDG("main_cmds"));
+      GtkTreeSelection *sel = gtk_tree_view_get_selection(main_cmds);
+      GtkTreePath *path = gtk_tree_path_new_from_indices(nIndex, -1);
+      gtk_tree_selection_select_path(sel, path);
+      gtk_tree_path_free(path);
+      gtk_tree_view_scroll_to_cell(main_cmds, path, NULL, FALSE, 0., 0.);
+      menu_moved = false;
+   }
+   else if (!szLocalString[0]) {
+      GtkTreePath *path;
+      // No match and no string.
+      nIndex = 0;  // Select first entry in call menu.
+      path = gtk_tree_path_new_first();
+      gtk_tree_view_set_cursor(GTK_TREE_VIEW(SDG("main_cmds")),
+			       path, NULL, FALSE);
+      gtk_tree_path_free(path);
+   }
+   else
+      menu_moved = false;
+}
+/// 487
 /// 838
 // Size of the square pixel array in the bitmap for one person.
 // The bitmap is exactly 8 of these wide and 4 of them high.
@@ -174,7 +387,9 @@ static struct {
     char **argv;
     int allocd;
 } fake_args = { 0, NULL, 0 };
-static void stash_away_sd_options(poptContext con,const struct poptOption *opt,
+static void stash_away_sd_options(poptContext con,
+				  enum poptCallbackReason reason,
+				  const struct poptOption *opt,
 				  const char *args, void * data) {
     char *buf;
     int n;
@@ -185,12 +400,14 @@ static void stash_away_sd_options(poptContext con,const struct poptOption *opt,
 	    fake_args.allocd*=2; // re-allocation
 	fake_args.argv = (char**) get_more_mem
 	    (fake_args.argv, fake_args.allocd * sizeof(*(fake_args.argv)));
+	if (fake_args.argc==0) // fake the program name.
+	   fake_args.argv[fake_args.argc++] = "sd";
     }
     // okay, stash away this option
     assert(opt->longName);
     n = strlen(opt->longName)+2;
     buf = (char*) get_mem(n);
-    snprintf(buf, n, "-%s", opt->longName);
+    g_snprintf(buf, n, "-%s", opt->longName);
     fake_args.argv[fake_args.argc++]=buf;
     // is there an argument? stash it away too
     if (args)
@@ -220,7 +437,8 @@ static const struct poptOption tty_options[] = {
      "set the initial sd window size", "<width>x<height>[x<left>x<top>]"},
     POPT_TABLEEND /* end the list */
 }, sd_options[] = {
-    {NULL, 0, POPT_ARG_CALLBACK, (void*)&stash_away_sd_options, 0, NULL, NULL},
+    {NULL, 0, POPT_ARG_CALLBACK,
+     (void*)((poptCallbackType)stash_away_sd_options), 0, NULL, NULL},
     {"write_list", 0,
      POPT_ARG_STRING | POPT_ARGFLAG_ONEDASH | POPT_ARGFLAG_OPTIONAL, NULL, 0,
      "write out list for this level", "<filename>"},
@@ -420,10 +638,6 @@ bool iofull::help_manual()
    }
    return result;
 }
-void
-on_help_manual_activate(GtkMenuItem *menuitem, gpointer user_data) {
-   gg->help_manual();
-}
 
 
 bool iofull::help_faq()
@@ -443,10 +657,7 @@ bool iofull::help_faq()
    }
    return result;
 }
-void
-on_help_faq_activate(GtkMenuItem *menuitem, gpointer user_data) {
-   gg->help_faq();
-}
+
 
 void
 on_help_about_activate(GtkMenuItem *menuitem, gpointer user_data) {
@@ -492,17 +703,100 @@ static void about_open_url(GtkAboutDialog *about,
       gtk_widget_show_all(dialog);
    }
 }
+void
+on_help_manual_activate(GtkMenuItem *menuitem, gpointer user_data) {
+   gg->help_manual();
+}
+void
+on_help_faq_activate(GtkMenuItem *menuitem, gpointer user_data) {
+   gg->help_faq();
+}
+void
+on_file_quit_activate(GtkMenuItem *menuitem, gpointer user_data) {
+   // send delete event to window; borrowed from send_delete_event in gtkplug.c
+   GdkEvent *event = gdk_event_new (GDK_DELETE);
+   event->any.window = window_main->window;
+   event->any.send_event = TRUE;
+   gtk_widget_event (window_main, event);
+   gdk_event_free (event);
+}
+void
+on_main_entry_changed(GtkEditable *editable, gpointer user_data) {
+   check_text_change(false);
+}
+void
+on_main_cancel_clicked(GtkButton *button, gpointer user_data) {
+      user_match.match.index = -1;
+      WaitingForCommand = false;
+}
+gboolean
+on_main_cmds_button_press_event(GtkWidget *widget, GdkEventButton *event,
+				gpointer user_data) {
+   GtkTreeView *main_cmds = GTK_TREE_VIEW(widget);
+      // See whether this an appropriate single-click or double-click.
+   if (event->type ==
+       (ui_options.accept_single_click ? GDK_BUTTON_PRESS : GDK_2BUTTON_PRESS)
+       && event->window == gtk_tree_view_get_bin_window(main_cmds))
+      {
+	 GtkTreePath *path;
+	 // kinda annoying: have to handle selection ourself for single-click
+	 // case =(
+	 gtk_tree_view_get_path_at_pos
+	    (main_cmds, (gint)event->x, (gint)event->y, &path, NULL,NULL,NULL);
+	 gtk_tree_selection_select_path
+	    (gtk_tree_view_get_selection(main_cmds), path);
+	 gtk_tree_path_free(path);
+	 // okay, now 'click' the accept button.
+	 on_main_accept_clicked(GTK_BUTTON(SDG("main_accept")), NULL);
+	 return TRUE; /* I handled this */
+      }
+  return FALSE;
+}
+gint
+on_key_snoop(GtkWidget *grab_widget, GdkEventKey *event, gpointer func_data) {
+   GtkWidget *main_entry = SDG("main_entry");
+
+   // special bindings when in main entry area.
+   if (gtk_widget_is_ancestor(main_entry, grab_widget) &&
+       gtk_widget_is_focus(main_entry) &&
+       event->type==GDK_KEY_PRESS &&
+       // no shift keys (although caps-lock is okay)
+       0== (event->state & (GDK_MODIFIER_MASK-GDK_RELEASE_MASK-GDK_LOCK_MASK)))
+      switch (event->keyval) {
+      case GDK_ISO_Enter:
+      case GDK_KP_Enter:
+      case GDK_Return:
+	 on_main_accept_clicked(GTK_BUTTON(SDG("main_accept")), NULL);
+	 return TRUE; // handled it.
+      case GDK_Tab:
+      case GDK_KP_Tab:
+      case GDK_ISO_Left_Tab:
+	 if (ui_options.tab_changes_focus) break;
+	 goto completion;
+      case GDK_Escape:
+      completion:
+	 check_text_change(true);
+	 return TRUE; // handled it.
+      default:
+	 break;
+      }
+   // XXX: handle special sd accelerators. (see LookupKeystrokeBinding)
+   // handle key-stroke normally.
+   return FALSE;
+}
+
+void
+on_main_accept_clicked                 (GtkButton       *button,
+                                        gpointer         user_data)
+{
+   g_warning("accept!");
+}
+
+
 
 /// 1375
 
 // extra stuff:
-static void do_my_final_shutdown() {
-   // send 'close' to window.
-   // XXX NOT CORRECT.
-   g_signal_emit_by_name(GTK_WIDGET(window_main), "GtkWidget::delete-event",
-			 NULL, NULL); // XXX is this correct?
-}
-
 void
 on_choose_font_for_printing_activate   (GtkMenuItem     *menuitem,
                                         gpointer         user_data) {
@@ -546,7 +840,7 @@ void iofull::set_pick_string(const char *string)
 
 void iofull::set_window_title(char s[])
 {
-   snprintf(main_title, sizeof(main_title), "Sd %s", s);
+   g_snprintf(main_title, sizeof(main_title), "Sd %s", s);
    SetTitle();
 }
 
@@ -734,8 +1028,8 @@ static gboolean startup_accept()
  
 	    if (call_list_filename) {
 	       if (call_list_filename[0])
-		  snprintf(abridge_filename, sizeof(abridge_filename), "%s",
-			   call_list_filename);
+		  g_snprintf(abridge_filename, sizeof(abridge_filename), "%s",
+			     call_list_filename);
 	       g_free(call_list_filename);
 	    }
          }
@@ -753,8 +1047,8 @@ static gboolean startup_accept()
 	 
 	 if (call_list_filename) {
 	    if (call_list_filename[0])
-	       snprintf(abridge_filename, sizeof(abridge_filename), "%s",
-			call_list_filename);
+	       g_snprintf(abridge_filename, sizeof(abridge_filename), "%s",
+			  call_list_filename);
 	    g_free(call_list_filename);
 	 }
       }
@@ -980,8 +1274,8 @@ bool iofull::init_step(init_callback_state s, int n)
 
    case final_level_query:
       calling_level = l_mainstream;   // User really doesn't want to tell us the level.
-      snprintf(outfile_string, sizeof(outfile_string), "%s",
-	       filename_strings[calling_level]);
+      g_snprintf(outfile_string, sizeof(outfile_string), "%s",
+		 filename_strings[calling_level]);
       break;
 
    case init_database1:
@@ -990,6 +1284,7 @@ bool iofull::init_step(init_callback_state s, int n)
 
       gtk_window_set_default_size(GTK_WINDOW(window_main),
 				  window_size_args[2], window_size_args[3]);
+      gtk_key_snooper_install(on_key_snoop, NULL); // intercept some keypresses
       gtk_widget_show(window_main);
       if (window_size_args[0]>0 && window_size_args[1]>0)
 	 gtk_window_move(GTK_WINDOW(window_main),
@@ -1385,7 +1680,7 @@ void ShowListBox(int nWhichOne)
 #ifdef TAB_FOCUS
    ButtonFocusIndex = 0;
 #endif
-   gtk_widget_grab_focus(SDG("entry_cmd"));
+   gtk_widget_grab_focus(SDG("main_entry"));
 }
 
 
@@ -1503,8 +1798,8 @@ popup_return iofull::do_comment_popup(char dest[])
 popup_return iofull::do_outfile_popup(char dest[])
 {
    char buffer[MAX_TEXT_LINE_LENGTH];
-   snprintf(buffer, sizeof(buffer),
-	   "Current sequence output file is \"%s\".", outfile_string);
+   g_snprintf(buffer, sizeof(buffer),
+	      "Current sequence output file is \"%s\".", outfile_string);
    return do_general_text_popup(buffer,
                                 "Enter new name (or '+' to base it on today's date):",
                                 outfile_string,
@@ -1517,8 +1812,8 @@ popup_return iofull::do_header_popup(char dest[])
    char myPrompt[MAX_TEXT_LINE_LENGTH];
 
    if (header_comment[0])
-      snprintf(myPrompt, sizeof(myPrompt),
-	       "Current title is \"%s\".", header_comment);
+      g_snprintf(myPrompt, sizeof(myPrompt),
+		 "Current title is \"%s\".", header_comment);
    else
       myPrompt[0] = 0;
 
@@ -1531,8 +1826,8 @@ popup_return iofull::do_getout_popup (char dest[])
    char buffer[MAX_TEXT_LINE_LENGTH+MAX_FILENAME_LENGTH];
 
    if (header_comment[0]) {
-      snprintf(buffer, sizeof(buffer),
-	       "Session title is \"%s\".", header_comment);
+      g_snprintf(buffer, sizeof(buffer),
+		 "Session title is \"%s\".", header_comment);
       return
          do_general_text_popup(buffer,
                                "You can give an additional comment for just this sequence:",
@@ -1540,8 +1835,8 @@ popup_return iofull::do_getout_popup (char dest[])
                                dest);
    }
    else {
-      snprintf(buffer, sizeof(buffer),
-	       "Output file is \"%s\".", outfile_string);
+      g_snprintf(buffer, sizeof(buffer),
+		 "Output file is \"%s\".", outfile_string);
       return do_general_text_popup(buffer, "Sequence comment:", "", dest);
    }
 }
@@ -1704,7 +1999,7 @@ void iofull::add_new_line(char the_line[], uint32 drawing_picture)
 {
    GtkTextIter iter;
    erase_questionable_stuff();
-   // we ought to do something fancier if 'drawing picture'
+   // we ought to do something fancier if 'drawing_picture'
    // but for now we're just going to ignore that parameter.
    gtk_text_buffer_get_end_iter(main_buffer, &iter);
    gtk_text_buffer_insert(main_buffer, &iter, the_line, -1);
@@ -1777,7 +2072,7 @@ void iofull::fatal_error_exit(int code, Cstring s1, Cstring s2)
 {
    char msg[200];
    if (s2 && s2[0]) {
-      snprintf(msg, sizeof(msg), "%s: %s", s1, s2);
+      g_snprintf(msg, sizeof(msg), "%s: %s", s1, s2);
       s1 = msg;   // Yeah, we can do that.  Yeah, it's sleazy.
    }
 
@@ -1813,7 +2108,7 @@ void iofull::terminate(int code)
 #endif
       }
 
-      do_my_final_shutdown();
+      on_file_quit_activate(NULL, NULL);
    }
 
    if (ico_pixbuf)
