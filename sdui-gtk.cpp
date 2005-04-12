@@ -734,14 +734,14 @@ on_help_about_activate(GtkMenuItem *menuitem, gpointer user_data) {
       "This is free software, and you are welcome to redistribute it\n"
       "under certain conditions.  For details see the license.";
    static const gchar *license =
-      "SD comes with ABSOLUTELY NO WARRANTY; for details see the license.\n"
-      "This is free software, and you are welcome to redistribute "
-      "it under certain conditions; for details see the "
-      "license.\n"
-      "You should have received a copy of the GNU General Public "
-      "License along with this program, in the file "
-      "\"COPYING.txt\"; if not, write to the Free Software "
-      "Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA "
+      "SD comes with ABSOLUTELY NO WARRANTY.\n"
+      "This is free software, and you are welcome to redistribute\n"
+      "it under certain conditions; for details see the\n"
+      "license.\n\n"
+      "You should have received a copy of the GNU General Public\n"
+      "License along with this program, in the file\n"
+      "\"COPYING.txt\"; if not, write to the Free Software\n"
+      "Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA\n"
       "02111-1307 USA.";
    gtk_show_about_dialog(GTK_WINDOW(window_main),
 			 "name", PACKAGE,
