@@ -42,13 +42,150 @@
 #define BUFSIZE 1024
 #define SESSION_ID_MAXLEN 64
 #define SESSION_FD 5 /* arbitrary choice */
-#define SESSION_TIMEOUT_SECS 600
+#define SESSION_TIMEOUT_SECS 600 /* ten minutes */
 
 #define PROG_NAME "sd_web"
 #define PROG_URL "http://cscott.net/Projects/Sd/"
 #define PROTOCOL "HTTP/1.0"
 #define RFC1123FMT "%a, %d %b %Y %H:%M:%S GMT"
 
+/* TO DO:
+ * implement: pid_to_session_name, insert_into_session_table,
+ *            lookup_in_session_table, delete_from_session_table
+ * pid_to_session_name should use XTEA with a randomly-selected key.
+ * session_table should be minimal impl, prb'ly binary tree
+ * (rely on XTEA hash to ensure even distribution)
+ */
+
+/*--------------------------------------------------------------*/
+/*  A tiny bit of cryptography, for session management.         */
+/*                                                              */
+/* This is the XTEA (also called TEAN) cipher, encoding mode    */
+/* only, used as a very simple secure hash function.            */
+static void
+xtea(uint32_t *v, uint32_t *k) {
+#define TEA_ROUNDS 64
+#define DELTA 0x9e3779b9
+    uint32_t y=v[0], z=v[1];
+    uint32_t limit=DELTA*TEA_ROUNDS, sum=0;
+    while (sum!=limit)
+	y += ((z<<4 ^ z>>5) + z) ^ (sum + k[sum&3]),
+	sum += DELTA,
+	z += ((y<<4 ^ y>>5) + y) ^ (sum + k[(sum>>11) & 3]);
+    v[0]=y, v[1]=z;
+#undef TEA_ROUNDS
+#undef DELTA
+}
+/* This gets an initial key */
+static uint32_t SESSION_KEY[4];
+static void
+init_session_key() {
+    FILE *in = fopen("/dev/random", "rb");
+    while (1!=fread(SESSION_KEY, sizeof(SESSION_KEY), 1, in))
+	;
+    fclose(in);
+}
+/* This is the hash function */
+static void
+pid_to_session_name(pid_t child, char *session_id, int session_size) {
+    const char * code =
+	"0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz_-";
+    uint32_t text[2] = { 0, child };
+    uint64_t result;
+    int i;
+    xtea(text, SESSION_KEY);
+    result = text[0]; result<<=32; result|=text[1]; // big endian.
+    for (i=0; i < (session_size-1) && result!=0; i++, result>>=6)
+	session_id[i] = code[result&63];
+    session_id[i]=0;
+}
+/* we could decode a session_id to get a pid back,
+ * but we don't need that, at the moment. */
+
+/*---------------------------------------------------------------------*/
+/* Some basic binary tree functions to handle a session database       */
+/* Because session_ids are randomly distributed, our tree should stay  */
+/* fairly well-balanced.                                               */
+typedef struct session_tree {
+    struct session_tree *left, *right;
+    int fd;
+    char session_id[0];
+} *session_tree_t;
+static session_tree_t session_db = NULL;
+
+static session_tree_t *
+find(session_tree_t *tp, char *session_id) {
+    session_tree_t t = *tp;
+    if (t==NULL) return tp;
+    int c = strcmp(session_id, t->session_id);
+    return
+	(c<0) ? find(&(t->left), session_id) :
+	(c>0) ? find(&(t->right), session_id) :
+	tp;
+}
+static void
+insert_into_session_table(char *session_id, int fd) {
+    session_tree_t *t, nt = (session_tree_t)
+	malloc(sizeof(*nt)+strlen(session_id)+1);
+    strcpy(nt->session_id, session_id);
+    nt->left = nt->right = NULL;
+    assert(fd>=0);
+    nt->fd = fd;
+    t = find(&session_db, session_id);
+    if (*t!=NULL) return; // this is a duplicate =(
+    *t = nt;
+}
+static int
+lookup_in_session_table(char *session_id) {
+    session_tree_t *t = find(&session_db, session_id);
+    if (*t==NULL) return -1; // not found =(
+    return (*t)->fd;
+}
+static session_tree_t
+delete_highest(session_tree_t *tp) {
+    session_tree_t t = *tp;
+    if (t->right)
+	return delete_highest(&(t->right));
+    *tp = t->left;
+    return t;
+}
+static session_tree_t
+delete_lowest(session_tree_t *tp) {
+    session_tree_t t = *tp;
+    if (t->left)
+	return delete_lowest(&(t->left));
+    *tp = t->right;
+    return t;
+}
+static void
+delete_from_session_table(char *session_id) {
+    static int toggle = 0;
+    session_tree_t t, *tp, tt;
+    printf("DELETING SESSION: %s\n", session_id);
+    tp = find(&session_db, session_id);
+    t = *tp;
+    if (t==NULL) return; // it's already gone (somehow) =(
+    // deleting is easy if t->left or t->right is NULL.
+    if ((t->left == NULL) || (t->right == NULL)) {
+	*tp = (t->left) ? t->left : t->right;
+	free(t);
+	return;
+    }
+    // otherwise, we need to find either the highest left or lowest right
+    // subkey and move it here.
+    if (toggle=!toggle) // alternate to keep tree balanced
+	tt = delete_highest(&(t->left));
+    else
+	tt = delete_lowest(&(t->right));
+    tt->left = t->left;
+    tt->right = t->right;
+    *tp = tt;
+    free(t);
+    return;
+}
+
+/*-------------------------------------------------------------------*/
+/*  HTTP/HTML-related stuff                                          */
 static void
 send_headers(FILE *out, int status, char* title, char* extra_header,
 	     char* mime_type, off_t length, time_t mod ) {
@@ -107,12 +244,14 @@ int recv_session_message(int fd, enum session_request_type *request_type,
     struct cmsghdr *hdr = (struct cmsghdr *) hdrbuf;
     struct msghdr rmsg;
     int rc;
+    rmsg.msg_name = NULL;
+    rmsg.msg_namelen = 0;
     rmsg.msg_iov = &riov;
     rmsg.msg_control = hdr;
     do {
 	rmsg.msg_iovlen = 1;
 	rmsg.msg_controllen = sizeof(hdrbuf);
-	rc = recvmsg(fd, &rmsg, 0);
+	rc = recvmsg(fd, &rmsg, MSG_WAITALL);
     } while ((rc<0) && (errno==EAGAIN || errno==EINTR));
     if (rc < 0) return rc; // failure.
     // success: write back received stuff.
@@ -197,6 +336,57 @@ int ask_mgr_for_session(int session_mgr_fd, char *session_id,
 }
 
 
+int
+session_server_do_one(enum session_request_type request_type,
+		      char *session_id, int session_id_maxlen,
+		      int reply_fd) {
+    int rc, fds[2], child;
+#if 0
+    printf("Session manager says: %s %s %d\n",
+	   request_type==NONE ? "NONE" : request_type==REPLY ? "REPLY" :
+	   request_type==NEW ? "NEW" : request_type==CONNECT ? "CONNECT" :
+	   request_type==DESTROY ? "DESTROY" : "unknown", session_id,
+	   reply_fd);
+#endif
+    assert(reply_fd >= 0 || request_type==DESTROY);
+    // what type of request is this?
+    switch(request_type) {
+    case NEW:
+	// create new socketpair
+	rc = socketpair(AF_UNIX, SOCK_SEQPACKET, 0, fds);
+	if (rc < 0) { perror("Can't create socketpair"); exit(1); }
+	// create new session
+	child = fork();
+	if (child==0) { // okay, in the child process.
+	    close(fds[1]);  // close unneeded file descriptors.
+	    close(reply_fd);
+	    return fds[0]; // this says create the new session on return
+	}
+	close(fds[0]);
+	// create session name.
+	pid_to_session_name(child, session_id, session_id_maxlen);
+	insert_into_session_table(session_id, fds[1]);
+	goto send_response; // we could also safely fall through here.
+    case CONNECT:
+	// lookup appropriate fd_to_send from session_id
+	fds[1] = lookup_in_session_table(session_id);
+	if (fds[1] < 0) fds[1]=-1; // can't find this session
+    send_response:
+	// send back fds[1]
+	send_session_message(reply_fd, REPLY, session_id, fds[1]);
+	close(reply_fd);
+	// okay, done.
+	break;
+    case DESTROY:
+	// this is easy enough:
+	fds[1] = lookup_in_session_table(session_id);
+	if (fds[1] >= 0) close(fds[1]);
+	delete_from_session_table(session_id);
+	// no response necessary.
+	break;
+    }
+    return -1; // no new session.
+}
 
 /* This function returns (in a forked child process) to create a new
  * session (by executing the continuation).  At that point, file descriptor
@@ -207,67 +397,43 @@ int ask_mgr_for_session(int session_mgr_fd, char *session_id,
 void session_server(int session_mgr_fd) {
     enum session_request_type request_type;
     char session_id[SESSION_ID_MAXLEN + 1];
-    int reply_fd;
-    int fds[2]; // new sessions will put their connection fds here.
+    int reply_fd, session_fd;
     int rc, child;
 
     while (1) {
-	// okay, wait for a session request.
-	rc = recv_session_message(session_mgr_fd, &request_type,
-				  session_id, sizeof(session_id), &reply_fd);
-	if (rc<0) {
-	    perror("Session manager error");
-	    exit(0);
+	/* wait for a session request. */
+	rc = recv_session_message
+	    (session_mgr_fd, &request_type, session_id, sizeof(session_id),
+	     &reply_fd);
+	if (rc<0) { perror("Session manager error"); exit(0); }
+	/* always reap zombies first. */
+	while (0 < (child=waitpid(0, 0, WNOHANG))) {
+	    /* these should all be real sessions, although it would be
+	     * harmless even if they weren't. */
+	    char nsession_id[SESSION_ID_MAXLEN + 1];
+	    pid_to_session_name(child, nsession_id, sizeof(nsession_id));
+	    session_server_do_one(DESTROY,nsession_id,sizeof(nsession_id),-1);
 	}
-	if (request_type!=DESTROY && reply_fd < 0)
-	    continue; // xxx bad message.
-	// what type of request is this?
-	switch(request_type) {
-	case NEW:
-	    // create new socketpair
-	    rc = socketpair(AF_UNIX, SOCK_SEQPACKET, 0, fds);
-	    if (rc < 0) { perror("Can't create socketpair"); exit(1); }
-	    // create new session
-	    child = fork();
-	    if (child==0) goto new_session; // break won't work here.
-	    close(fds[0]);
-	    // create session name.
-	    pid_to_session_name(child, session_id, sizeof(session_id));
-	    insert_into_session_table(session_id, fds[1]);
-	    goto send_response; // we could also safely fall through here.
-	case CONNECT:
-	    // lookup appropriate fd_to_send from session_id
-	    fds[1] = lookup_in_session_table(session_id);
-	    if (fds[1] < 0) fds[1]=-1; // can't find this session
-	send_response:
-	    // send back fds[1]
-	    send_session_message(reply_fd, REPLY, session_id, fds[1]);
-	    close(reply_fd);
-	    // okay, done.
-	    break;
-	case DESTROY:
-	    // this is easy enough:
-	    fds[1] = lookup_in_session_table(session_id);
-	    if (fds[1] >= 0) close(fds[1]);
-	    delete_from_session_table(session_id);
-	    // no response necessary.
-	    break;
-	}
-	// do it again.
+	/* okay, now process this request. */
+	session_fd = session_server_do_one
+	    (request_type, session_id, sizeof(session_id), reply_fd);
+	if (session_fd>=0) break; // start new session.
     }
-    
- new_session:
-    // okay, this is the child process.
-    dup2(fds[0], SESSION_FD);
-    close(fds[0]); // close unneeded file descriptors.
-    close(fds[1]);
-    close(session_mgr_fd);
-    close(reply_fd);
+    /* We only get here if we've forked to create a new session. */
+    /* We're in the child process here. */
+    close(session_mgr_fd); // we don't need this fd any more.
+    // make SESSION_FD the way to talk to this session.
+    if (session_fd != SESSION_FD) {
+	rc = dup2(session_fd, SESSION_FD);
+	if (rc<0) { perror("dup2 failed creating new session"); exit(1); }
+	close(session_fd);
+    }
     alarm(SESSION_TIMEOUT_SECS); // schedule cleanup
     return; // execute continuation.
 }
 
-int serve_one(int session_mgr_fd, int socket) {
+int
+serve_one(int session_mgr_fd, int socket) {
     char line[BUFSIZE], method[BUFSIZE], path[BUFSIZE], protocol[BUFSIZE];
     char session[BUFSIZE], *cmd;
     FILE *in = fdopen(socket, "a+b");
@@ -289,6 +455,9 @@ int serve_one(int session_mgr_fd, int socket) {
     if (path[0]!='/')
 	return send_error(in, 400, "Bad Request", NULL,
 			  "Path must start with slash.");
+    // some special files
+    if (strcmp(path, "/favicon.ico")==0)
+	return send_error(in, 404, "Not Found", NULL, "No favicon.");
     // make sure there's a session identifier.
     if (1 != sscanf(path, "/%[^ /]/%n", session, &n)) {
 	// create a new session and redirect to it.
@@ -335,7 +504,7 @@ void master_server(unsigned short port, int session_mgr_fd) {
     if (ss < 0) {
 	perror("Can't create master server socket"); exit(1);
     }
-    setsockopt(ss, SOL_SOCKET, SO_REUSEADDR, NULL, 0);
+    setsockopt(ss, SOL_SOCKET, SO_REUSEADDR, &t, sizeof(t));
     setsockopt(ss, SOL_SOCKET, SO_KEEPALIVE , &t, sizeof(t));
     if ((0 != bind(ss, (struct sockaddr *) &sa, sizeof(sa))) ||
 	(0 != listen(ss, 10))) {
@@ -347,10 +516,8 @@ void master_server(unsigned short port, int session_mgr_fd) {
 	pid_t child;
 	/* reap zombies */
 	while (0 < (child=waitpid(0, 0, WNOHANG))) {
-	    /* notify session manager that this child is dead */
-	    char session_id[SESSION_ID_MAXLEN+1];
-	    pid_to_session_name(child, session_id, sizeof(session_id));
-	    send_session_message(session_mgr_fd, DESTROY, session_id, -1);
+	    /* hmm, nothing to do here, i think.  sessions are taken
+	     * care of elsewhere. These are just client children. */
 	}
 	/* accept a connection */
 	t = sizeof(sa);
@@ -404,7 +571,7 @@ int main(int argc, char **argv) {
 	do {
 	    rmsg.msg_iovlen = 1;
 	    rmsg.msg_controllen = sizeof(hdrbuf);
-	    rc = recvmsg(SESSION_FD, &rmsg, 0);
+	    rc = recvmsg(SESSION_FD, &rmsg, MSG_WAITALL);
 	} while ((rc<0) && (errno==EAGAIN || errno==EINTR));
 	if (rc < 0) {
 	    perror("Client session error.");
