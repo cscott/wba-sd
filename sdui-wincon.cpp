@@ -309,6 +309,10 @@ extern int get_lines_for_more()
 {
    return sdtty_screen_height-1;
 }
+extern bool ttu_unlimited_scrollback()
+{
+    return false;
+}
 
 extern void clear_line()
 {
@@ -600,4 +604,23 @@ extern void get_string(char *dest, int max)
 extern void ttu_bell()
 {
    (void) MessageBeep(MB_ICONQUESTION);
+}
+
+int main(int argc, char *argv[])
+{
+   // In Sdtty, the defaults are reverse video (white-on-black) and pastel colors.
+
+   ui_options.reverse_video = true;
+   ui_options.pastel_color = true;
+#ifdef __WINE__
+   // linux fonts typically don't have the "pointy-triangles", so don't default
+   // to using them when compiling the "wine console" version of sdtty
+   ui_options.no_graphics = 2;
+#endif
+
+   // Initialize all the callbacks that sdlib will need.
+   iofull ggg;
+   gg = &ggg;
+
+   return sdmain(argc, argv);
 }
