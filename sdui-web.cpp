@@ -39,7 +39,7 @@
 
 #include "sd.h"
 #include "sdwebico.h"
-#define SERVER_PORT 8080
+#define SERVER_PORT 8081
 #define BUFSIZE 1024
 #define SESSION_ID_MAXLEN 64
 #define SESSION_FD 5 /* arbitrary choice */
@@ -49,6 +49,14 @@
 #define PROG_URL "http://cscott.net/Projects/Sd/"
 #define PROTOCOL "HTTP/1.0"
 #define RFC1123FMT "%a, %d %b %Y %H:%M:%S GMT"
+
+/* XXX TO DO:
+ * why does 'more processing' not work?
+ * make incorrect commands do something sensible
+ * correct formation output (graphics or colors)
+ * html-escape the emitted text (< > & etc)
+ * handle 'exit from program' more gracefully.
+ */
 
 /*--------------------------------------------------------------*/
 /*  A tiny bit of cryptography, for session management.         */
@@ -499,10 +507,19 @@ serve_one(int session_mgr_fd, int socket) {
 	return redirect(in, session, "#cursor");
     }
     // parse command.
-    if (strncmp(path+n, "c?i=", 4)==0) {
-	char *p, *q;
-	cmd = path+n+4;
+    cmd = NULL;
+    if (strncmp(path+n, "c?", 2)==0) {
+	cmd = path+n+1;
+	// find the 'i=' entry.
+	while (cmd!=NULL && strncmp(cmd+1, "i=", 2)!=0)
+	    cmd = strchr(cmd+1, '&');
+    }
+    if (cmd) {
+	cmd+=3; // skip over [?&]i=
+	char *end = strchr(cmd, '&');
+	if (end) *end=0;
 	// url decode this string.
+	char *p, *q;
 	for(p=cmd, q=p; *q; )
 	    if (q[0]=='%' && q[1] && q[2]) {
 		int m =
@@ -660,8 +677,10 @@ void iofull::set_pick_string(const char *str) {
 }
 void iofull::final_initialize()
 {
+#if 0
    if (!sdtty_no_console)
       ui_options.use_escapes_for_drawing_people = 1;
+#endif
 }
 void ttu_initialize() { /* do nothing, for now */ }
 void ttu_terminate() { /* nothing to tear down */ }
@@ -826,6 +845,7 @@ wait_for_command(char *command, int command_len) {
 	fprintf
 	    (out, "<a name=cursor></a><input type=text size=40 name=i>"
 	     "</pre>"
+	     "<p><input type=submit name=s value=Go></p>"
 	     "</form>"
 	     "</body></html>");
 	fclose(out);
