@@ -35,10 +35,10 @@
 #include <string.h>
 #include <time.h>
 #include <netinet/in.h>
+#include <netdb.h>
 
 #include "sd.h"
 #include "sdwebico.h"
-#define SERVER_NAME "localhost"
 #define SERVER_PORT 8080
 #define BUFSIZE 1024
 #define SESSION_ID_MAXLEN 64
@@ -212,11 +212,13 @@ send_error(FILE *out, int status, char* title, char* extra_header, char* text ) 
     fflush( out );
     return 0; // bogus.
 }
+static char *web_get_hostname();
 static int
 redirect(FILE *out, char *session, char *extra) {
+    char *server_name = web_get_hostname();
     char location[BUFSIZE];
     snprintf(location, BUFSIZE, "Location: http://%s:%d/%s/%s",
-	     SERVER_NAME, SERVER_PORT, session, extra?extra:"");
+	     server_name, SERVER_PORT, session, extra?extra:"");
     return send_error(out, 303, "See Other", location, "Session needed.");
 }
 
@@ -440,6 +442,12 @@ void session_server(int session_mgr_fd) {
 /*-----------------------------------------------------------------------*/
 /* HTTP SERVER                                                           */
 
+static char stylesheet_css[] = {
+    "body{font-family:arial,sans-serif;"
+    "background-color:#333;color:#7CFE5A;}\n"
+    "form.sd{font: bold 140% \"Andale Mono\", monospace;}\n"
+};
+
 // parse one http request.
 static int
 serve_one(int session_mgr_fd, int socket) {
@@ -472,8 +480,13 @@ serve_one(int session_mgr_fd, int socket) {
 	fclose(in);
 	exit(0);
     }
-    if (strcmp(path, "/stylesheet.css")==0)
-	return send_error(in, 404, "Not Found", NULL, "No stylesheet yet.");
+    if (strcmp(path, "/stylesheet.css")==0) {
+	send_headers(in, 200, "Ok", NULL, "text/css",
+		     sizeof(stylesheet_css)-1, -1);
+	fwrite(stylesheet_css, sizeof(stylesheet_css)-1, 1, in);
+	fclose(in);
+	exit(0);
+    }
     // make sure there's a session identifier.
     if (1 != sscanf(path, "/%[^ /]/%n", session, &n)) {
 	// create a new session and redirect to it.
@@ -487,8 +500,26 @@ serve_one(int session_mgr_fd, int socket) {
     }
     // parse command.
     if (strncmp(path+n, "c?i=", 4)==0) {
+	char *p, *q;
 	cmd = path+n+4;
-	// XXX need to urldecode this string.
+	// url decode this string.
+	for(p=cmd, q=p; *q; )
+	    if (q[0]=='%' && q[1] && q[2]) {
+		int m =
+		    (q[1]>='0'&&q[1]<='9')?(q[1]-'0'):
+		    (q[1]>='A'&&q[1]<='F')?(q[1]-'A'+10):
+		    (q[1]>='a'&&q[1]<='f')?(q[1]-'a'+10): 0;
+		int l =
+		    (q[2]>='0'&&q[2]<='9')?(q[2]-'0'):
+		    (q[2]>='A'&&q[2]<='F')?(q[2]-'A'+10):
+		    (q[2]>='a'&&q[2]<='f')?(q[2]-'a'+10): 0;
+		*p++ = (m<<4)|l;
+		q+=3;
+	    } else if (q[0]=='+') {
+		*p++ = ' '; q++;
+	    } else
+		*p++ = *q++;
+	*p=0;
     } else
 	cmd = "";
     // look up the session identifier; redirect if not found.
@@ -565,9 +596,20 @@ static void wait_for_command(char *command, int command_len);
 class ioweb : public iofull { // allow subclassing methods in iofull
 public:
     int session_mgr_fd;
-    ioweb(int session_mgr_fd):session_mgr_fd(session_mgr_fd) { }
+    char *hostname;
+    ioweb(int session_mgr_fd):session_mgr_fd(session_mgr_fd) {
+	char hostname[1024]; // Single Unix Specification v2 limit: 255 bytes
+	struct hostent *h;
+	gethostname(hostname, sizeof(hostname));
+	h = gethostbyname(hostname);
+	if (h)
+	    strcpy(hostname, h->h_name);
+	this->hostname = strdup(hostname);
+    }
     bool ioweb::init_step(init_callback_state s, int n);
 };
+// accessor
+static char *web_get_hostname() { return ((ioweb *)gg)->hostname; }
 // linebuffer abstraction: lines stored in reverse order.
 static struct linebuffer {
     struct linebuffer *next;
@@ -604,7 +646,6 @@ void iofull::display_help() { assert(0); }
 bool iofull::help_manual() { assert(0); return false; }
 bool iofull::help_faq() { assert(0); return false; }
 
-int get_char() { assert(0); return 0; }
 void ttu_bell() { return; }
 
 static const char *web_title = NULL, *web_pick_string = NULL;
@@ -621,11 +662,11 @@ void iofull::final_initialize()
 {
    if (!sdtty_no_console)
       ui_options.use_escapes_for_drawing_people = 1;
-   ui_options.diagnostic_mode=true; // sets 'match_lines' to very high value
 }
 void ttu_initialize() { /* do nothing, for now */ }
 void ttu_terminate() { /* nothing to tear down */ }
 int get_lines_for_more() { return 20000; /* effectively infinite */ }
+bool ttu_unlimited_scrollback() { return true; /* yes, infinite */ }
 void erase_last_n(int n) {
     if (linebuffer==NULL) return;
     if (linebuffer->line[0]==0) n++; // empty 'line in progress' doesn't count
@@ -681,12 +722,37 @@ ensure_session_server() {
 	session_server(((ioweb*)gg)->session_mgr_fd);
     }
 }
+static char input_buffer[1024];
 void get_string(char *dest, int max) {
     ensure_session_server();
-    wait_for_command(dest, max);
+    if (input_buffer[0]) {
+	strncpy(dest, input_buffer, max);
+	dest[max-1]=0;
+	input_buffer[0]=0;
+	// elide any trailing \n
+	char *cp = input_buffer + strlen(input_buffer) - 1;
+	if (*cp=='\n') *cp=0;
+    } else
+	wait_for_command(dest, max);
     // echo this string.
     put_line(dest);
     put_line("\n");
+}
+int get_char() {
+    while (!input_buffer[0]) {
+	wait_for_command(input_buffer, sizeof(input_buffer)-1);
+	// command should end in '\n' or '?' or '!'
+	if (input_buffer[0]==0) continue;
+	char *cp = input_buffer + strlen(input_buffer) - 1;
+	if (*cp!='?' && *cp!='!' && *cp!='\n') {
+	    cp[1] = '\n';
+	    cp[2] = 0;
+	}
+    }
+    char c = input_buffer[0];
+    for (char *p=input_buffer; *p; p++)
+	p[0] = p[1];
+    return c;
 }
 
 /* web server event loop. */
@@ -700,6 +766,8 @@ wait_for_command(char *command, int command_len) {
 	struct msghdr rmsg;
 	FILE * out;
 	int rc;
+	rmsg.msg_name = NULL;
+	rmsg.msg_namelen = 0;
 	rmsg.msg_iov = &riov;
 	rmsg.msg_control = hdr;
 	do {
@@ -780,6 +848,12 @@ int main(int argc, char **argv) {
 	perror("Can't create session manager socketpair");
 	exit(1);
     }
+    // okay, now let's do some sd initialization.
+    ui_options.reverse_video = true;
+    ui_options.pastel_color = true;
+    ui_options.no_graphics = 2;
+    ioweb ggg(fds[0]);
+    gg = &ggg;
     // go off and launch the master server.
     if (0==fork()) {
 	close(fds[0]);
@@ -788,12 +862,6 @@ int main(int argc, char **argv) {
 	exit(0);
     }
     close(fds[1]);
-    // okay, now let's do some sd initialization.
-    ui_options.reverse_video = true;
-    ui_options.pastel_color = true;
-    ui_options.no_graphics = 2;
-    ioweb ggg(fds[0]);
-    gg = &ggg;
 
     return sdmain(argc, argv);
 }
