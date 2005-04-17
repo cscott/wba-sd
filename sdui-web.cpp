@@ -37,6 +37,7 @@
 #include <netinet/in.h>
 
 #include "sd.h"
+#include "sdwebico.h"
 #define SERVER_NAME "localhost"
 #define SERVER_PORT 8080
 #define BUFSIZE 1024
@@ -49,19 +50,12 @@
 #define PROTOCOL "HTTP/1.0"
 #define RFC1123FMT "%a, %d %b %Y %H:%M:%S GMT"
 
-/* TO DO:
- * implement: pid_to_session_name, insert_into_session_table,
- *            lookup_in_session_table, delete_from_session_table
- * pid_to_session_name should use XTEA with a randomly-selected key.
- * session_table should be minimal impl, prb'ly binary tree
- * (rely on XTEA hash to ensure even distribution)
- */
-
 /*--------------------------------------------------------------*/
 /*  A tiny bit of cryptography, for session management.         */
 /*                                                              */
 /* This is the XTEA (also called TEAN) cipher, encoding mode    */
 /* only, used as a very simple secure hash function.            */
+/*    http://www-users.cs.york.ac.uk/~matthew/TEA/              */
 static void
 xtea(uint32_t *v, uint32_t *k) {
 #define TEA_ROUNDS 64
@@ -161,7 +155,6 @@ static void
 delete_from_session_table(char *session_id) {
     static int toggle = 0;
     session_tree_t t, *tp, tt;
-    printf("DELETING SESSION: %s\n", session_id);
     tp = find(&session_db, session_id);
     t = *tp;
     if (t==NULL) return; // it's already gone (somehow) =(
@@ -173,7 +166,7 @@ delete_from_session_table(char *session_id) {
     }
     // otherwise, we need to find either the highest left or lowest right
     // subkey and move it here.
-    if (toggle=!toggle) // alternate to keep tree balanced
+    if (0==(toggle=!toggle)) // alternate to keep tree balanced
 	tt = delete_highest(&(t->left));
     else
 	tt = delete_lowest(&(t->right));
@@ -217,26 +210,30 @@ send_error(FILE *out, int status, char* title, char* extra_header, char* text ) 
     fprintf(out, "%s\n", text );
     fprintf(out, "<HR>\n<ADDRESS><A HREF=\"%s\">%s</A></ADDRESS>\n</BODY></HTML>\n", PROG_URL, PROG_NAME );
     fflush( out );
-    exit( 1 );
     return 0; // bogus.
 }
 static int
-redirect(FILE *out, char *session, char *cmd) {
+redirect(FILE *out, char *session, char *extra) {
     char location[BUFSIZE];
     snprintf(location, BUFSIZE, "Location: http://%s:%d/%s/%s",
-	     SERVER_NAME, SERVER_PORT, session, cmd);
+	     SERVER_NAME, SERVER_PORT, session, extra?extra:"");
     return send_error(out, 303, "See Other", location, "Session needed.");
 }
 
 
+/*----------------------------------------------------------------------*/
+/* Our session manager.                                                 */
+
+// These are the messages our manager understands.
 typedef enum session_request_type { NONE, REPLY, NEW, CONNECT, DESTROY };
 struct session_request {
     enum session_request_type request;
     char session_id[0];
 };
-int recv_session_message(int fd, enum session_request_type *request_type,
-			 char *session_id, int session_id_maxlen,
-			 int *recv_fd) {
+// Helper function to receive a message, plus an optional file descriptor.
+static int
+recv_session_message(int fd, enum session_request_type *request_type,
+		     char *session_id, int session_id_maxlen, int *recv_fd) {
     char hdrbuf[sizeof(struct cmsghdr) + sizeof(int)];
     char rcvbuf[sizeof(session_request) + SESSION_ID_MAXLEN + 1];
     struct session_request *req = (struct session_request *) rcvbuf;
@@ -257,12 +254,12 @@ int recv_session_message(int fd, enum session_request_type *request_type,
     // success: write back received stuff.
     if (request_type) {
 	*request_type = NONE;
-	if (rc >= sizeof(*req))
+	if (rc >= (int) sizeof(*req))
 	    *request_type = req->request;
     }
     if (session_id && session_id_maxlen>0) {
 	session_id[0]=0;
-	if (rc > sizeof(*req)) {
+	if (rc > (int) sizeof(*req)) {
 	    // ensure null-termination
 	    req->session_id[rc-sizeof(*req)]=0;
 	    strncpy(session_id, req->session_id, session_id_maxlen);
@@ -281,8 +278,10 @@ int recv_session_message(int fd, enum session_request_type *request_type,
     // okay, return status.
     return rc;
 }
-int send_session_message(int fd, enum session_request_type request_type,
-			 char *session_id, int reply_fd) {
+// Helper function to send a message and an optional file descriptor.
+static int
+send_session_message(int fd, enum session_request_type request_type,
+		     char *session_id, int reply_fd) {
     char hdrbuf[sizeof(struct cmsghdr) + sizeof(int)];
     char sndbuf[sizeof(session_request) + SESSION_ID_MAXLEN + 1];
     struct session_request *req = (struct session_request *) sndbuf;
@@ -311,8 +310,12 @@ int send_session_message(int fd, enum session_request_type request_type,
     // okay, send this puppy.
     return sendmsg(fd, &smsg, 0);
 }
-int ask_mgr_for_session(int session_mgr_fd, char *session_id,
-			char *new_session_id, int new_session_maxlen) {
+// THIS IS THE MAIN 'CLIENT' INTERFACE TO THE SESSION MANAGER
+// Helper function to send a 'give me a session' message, and get back
+// the file descriptor we should use to communicate with that session.
+static int
+ask_mgr_for_session(int session_mgr_fd, char *session_id,
+		    char *new_session_id, int new_session_maxlen) {
     int reply_fd;
     int fds[2];
     int rc;
@@ -335,8 +338,8 @@ int ask_mgr_for_session(int session_mgr_fd, char *session_id,
     return reply_fd;
 }
 
-
-int
+// Process a single session manager request.
+static int
 session_server_do_one(enum session_request_type request_type,
 		      char *session_id, int session_id_maxlen,
 		      int reply_fd) {
@@ -388,6 +391,7 @@ session_server_do_one(enum session_request_type request_type,
     return -1; // no new session.
 }
 
+// THIS IS THE MAIN ENTRY POINT FOR THE SESSION MANAGER
 /* This function returns (in a forked child process) to create a new
  * session (by executing the continuation).  At that point, file descriptor
  * SESSION_FD (arbitrarily chosen) contains a SOCK_SEQPACKET connection
@@ -406,7 +410,8 @@ void session_server(int session_mgr_fd) {
 	    (session_mgr_fd, &request_type, session_id, sizeof(session_id),
 	     &reply_fd);
 	if (rc<0) { perror("Session manager error"); exit(0); }
-	/* always reap zombies first. */
+	/* always reap zombies first.  This way we don't inadvertently give
+	 * out a fd to a dead session. */
 	while (0 < (child=waitpid(0, 0, WNOHANG))) {
 	    /* these should all be real sessions, although it would be
 	     * harmless even if they weren't. */
@@ -432,7 +437,11 @@ void session_server(int session_mgr_fd) {
     return; // execute continuation.
 }
 
-int
+/*-----------------------------------------------------------------------*/
+/* HTTP SERVER                                                           */
+
+// parse one http request.
+static int
 serve_one(int session_mgr_fd, int socket) {
     char line[BUFSIZE], method[BUFSIZE], path[BUFSIZE], protocol[BUFSIZE];
     char session[BUFSIZE], *cmd;
@@ -456,8 +465,15 @@ serve_one(int session_mgr_fd, int socket) {
 	return send_error(in, 400, "Bad Request", NULL,
 			  "Path must start with slash.");
     // some special files
-    if (strcmp(path, "/favicon.ico")==0)
-	return send_error(in, 404, "Not Found", NULL, "No favicon.");
+    if (strcmp(path, "/favicon.ico")==0) {
+	send_headers(in, 200, "Ok", NULL, "image/x-icon",
+		     sizeof(sdweb_ico), -1);
+	fwrite(sdweb_ico, sizeof(sdweb_ico), 1, in);
+	fclose(in);
+	exit(0);
+    }
+    if (strcmp(path, "/stylesheet.css")==0)
+	return send_error(in, 404, "Not Found", NULL, "No stylesheet yet.");
     // make sure there's a session identifier.
     if (1 != sscanf(path, "/%[^ /]/%n", session, &n)) {
 	// create a new session and redirect to it.
@@ -467,13 +483,18 @@ serve_one(int session_mgr_fd, int socket) {
 	if (sess_fd < 0)
 	    return send_error(in, 404, "Not Found", NULL, "Can't create session.");
 	close(sess_fd);
-	return redirect(in, session, "");
+	return redirect(in, session, "#cursor");
     }
-    cmd = &path[n];
+    // parse command.
+    if (strncmp(path+n, "c?i=", 4)==0) {
+	cmd = path+n+4;
+	// XXX need to urldecode this string.
+    } else
+	cmd = "";
     // look up the session identifier; redirect if not found.
     sess_fd = ask_mgr_for_session(session_mgr_fd, session, NULL, 0);
     if (sess_fd < 0) goto renew_session; // can't find session.
-    // send 'cmd' part to the session process; pass over the socket fd for response
+    // send 'cmd' part to the session process; pass the socket fd for response
     // (in client process, call 'alarm' to automagically clean up)
     char hdrbuf[sizeof(struct cmsghdr) + sizeof(int)];
     struct cmsghdr *hdr = (struct cmsghdr *) hdrbuf;
@@ -494,6 +515,8 @@ serve_one(int session_mgr_fd, int socket) {
     exit(0); // this client is done.
 }
 
+// THIS IS THE MAIN ENTRY POINT FOR THE HTTP SERVER
+// Main HTTP server method.  Never returns.
 void master_server(unsigned short port, int session_mgr_fd) {
     struct sockaddr_in sa;
     int ss, s, t=1;
@@ -517,48 +540,158 @@ void master_server(unsigned short port, int session_mgr_fd) {
 	/* reap zombies */
 	while (0 < (child=waitpid(0, 0, WNOHANG))) {
 	    /* hmm, nothing to do here, i think.  sessions are taken
-	     * care of elsewhere. These are just client children. */
+	     * care of elsewhere. These are just client children. 
+	     * Reaping is taken care of by the waitpid call. */
 	}
 	/* accept a connection */
 	t = sizeof(sa);
 	s = accept(ss, (struct sockaddr *) &sa, &addrlen);
 	if (s < 0) continue; // yeah, whatever
-	if (fork()) {
-	    // server: go around to accept new connection
-	    close(s);
-	    continue;
-	}
-	close(ss);
-	serve_one(session_mgr_fd, s);
-	shutdown(s, SHUT_WR);
+	if (0==fork()) break; // create child process.
+	// go around to accept new connection
 	close(s);
-	exit(0);
     }
+    // in the child.
+    close(ss);
+    serve_one(session_mgr_fd, s);
+    shutdown(s, SHUT_WR);
+    close(s);
+    exit(0);
 }
 
-int main(int argc, char **argv) {
-    int fds[2];
-    int rc;
-    // create session manager socket
-    rc = socketpair(AF_UNIX, SOCK_SEQPACKET, 0, fds);
-    if (rc < 0) {
-	perror("Can't create session manager socketpair");
-	exit(1);
+/*----------------------------------------------------------------------*/
+/* SD UI CODE! (finally!)                                               */
+static void wait_for_command(char *command, int command_len);
+class ioweb : public iofull { // allow subclassing methods in iofull
+public:
+    int session_mgr_fd;
+    ioweb(int session_mgr_fd):session_mgr_fd(session_mgr_fd) { }
+    bool ioweb::init_step(init_callback_state s, int n);
+};
+// linebuffer abstraction: lines stored in reverse order.
+static struct linebuffer {
+    struct linebuffer *next;
+    const char line[0];
+} *linebuffer;
+static void linebuffer_add(const char *line) {
+    struct linebuffer *lb = (struct linebuffer*)
+	malloc(sizeof(*lb)+strlen(line)+1);
+    lb->next = linebuffer;
+    strcpy((char*)lb->line, line);//ignore 'const' during initialization
+    linebuffer = lb;
+}
+static void linebuffer_delete(int n) {
+    struct linebuffer *lb;
+    for ( ; linebuffer && n > 0; n--) {
+	lb = linebuffer;
+	linebuffer = lb->next;
+	free(lb);
     }
-    // go off and launch the master server.
-    if (0==fork()) {
-	close(fds[0]);
-	master_server(SERVER_PORT, fds[1]);
-	// this will never return, but still.
-	exit(0);
+}
+static void linebuffer_emit(struct linebuffer *lb, FILE *out) {
+    if (lb==NULL) return; // done.
+    linebuffer_emit(lb->next, out);
+    fputs(lb->line, out);
+}
+    
+bool ioweb::init_step(init_callback_state s, int n) {
+    switch(s) {
+    default:
+	return iofull::init_step(s, n);
     }
-    close(fds[1]);
-    // okay, now start the processes which will launch the sessions.
-    session_server(fds[0]);
-    // okay, if we're here then we need to start the session
-    // ...
-    // in the message loop:
-    int n=0;
+}
+void iofull::display_help() { assert(0); }
+bool iofull::help_manual() { assert(0); return false; }
+bool iofull::help_faq() { assert(0); return false; }
+
+int get_char() { assert(0); return 0; }
+void ttu_bell() { return; }
+
+static const char *web_title = NULL, *web_pick_string = NULL;
+void ttu_set_window_title(const char *str) {
+    if (web_title) free((void*)web_title);
+    web_title = strdup(str);
+}
+void iofull::set_pick_string(const char *str) {
+    if (web_pick_string) free((void*)web_pick_string);
+    if (str && *str) web_pick_string = strdup(str);
+    else web_pick_string = NULL;
+}
+void iofull::final_initialize()
+{
+   if (!sdtty_no_console)
+      ui_options.use_escapes_for_drawing_people = 1;
+   ui_options.diagnostic_mode=true; // sets 'match_lines' to very high value
+}
+void ttu_initialize() { /* do nothing, for now */ }
+void ttu_terminate() { /* nothing to tear down */ }
+int get_lines_for_more() { return 20000; /* effectively infinite */ }
+void erase_last_n(int n) {
+    if (linebuffer==NULL) return;
+    if (linebuffer->line[0]==0) n++; // empty 'line in progress' doesn't count
+    linebuffer_delete(n);
+    if (n>0) // regenerate 'line in progress'
+	linebuffer_add("");
+}
+void clear_line() {
+    if (linebuffer==NULL) return;
+    if (linebuffer->line[0]==0) return; // no 'line in progress'
+    linebuffer_delete(1);
+    linebuffer_add(""); // regenerate 'line in progress'
+}
+void put_line(const char the_line[]) {
+    // the 'top' line on the linebuffer is never \n terminated; the others
+    // will always be.
+    const char *existing = (linebuffer) ? linebuffer->line : "";
+    char buffer[strlen(the_line)+strlen(existing)+1];
+    const char *start=the_line, *p;
+    int i=0;
+    strcpy(buffer, existing);
+    i+=strlen(existing);
+    if (linebuffer) linebuffer_delete(1); // pop existing.
+    for (p=start; *p; p++) {
+	if (*p=='\r') continue; // ignore these.
+	buffer[i++] = *p;
+	if (*p=='\n') {
+	    buffer[i++]=0;
+	    linebuffer_add(buffer);
+	    i=0;
+	}
+    }
+    buffer[i++]=0;
+    linebuffer_add(buffer);
+}
+void put_char(int c) {
+    char str[] = { c, 0 };
+    put_line(str);
+}
+void rubout() {
+    if (linebuffer==NULL) return;
+    if (linebuffer->line[0]==0) { linebuffer_delete(1); rubout(); return; }
+    ((char*)linebuffer->line)[strlen(linebuffer->line)-1] = 0;
+}
+
+// call this to ensure we've started the session server by this point.
+// (ie we should do this before we take user input)
+void
+ensure_session_server() {
+    static bool started = false;
+    if (!started) {
+	started = true;
+	session_server(((ioweb*)gg)->session_mgr_fd);
+    }
+}
+void get_string(char *dest, int max) {
+    ensure_session_server();
+    wait_for_command(dest, max);
+    // echo this string.
+    put_line(dest);
+    put_line("\n");
+}
+
+/* web server event loop. */
+static void
+wait_for_command(char *command, int command_len) {
     while(1) {	
 	char hdrbuf[sizeof(struct cmsghdr) + sizeof(int)];
 	char rcvbuf[BUFSIZE];
@@ -566,6 +699,7 @@ int main(int argc, char **argv) {
 	struct cmsghdr *hdr = (struct cmsghdr *) hdrbuf;
 	struct msghdr rmsg;
 	FILE * out;
+	int rc;
 	rmsg.msg_iov = &riov;
 	rmsg.msg_control = hdr;
 	do {
@@ -589,9 +723,77 @@ int main(int argc, char **argv) {
 	alarm(SESSION_TIMEOUT_SECS);
 	// this is where to send the result.
 	out = fdopen(*(int *)CMSG_DATA(hdr), "w");
+	// did we get a command?
+	if (rcvbuf[0]) {
+	    char session_id[SESSION_ID_MAXLEN];
+	    pid_to_session_name(getpid(), session_id, sizeof(session_id));
+	    strncpy(command, rcvbuf, command_len);
+	    command[command_len-1]=0;
+	    // send a redirect.
+	    redirect(out, session_id, "#cursor");
+	    fclose(out);
+	    return;
+	}
+	// ok, just a refresh.  emit the transcript.
 	send_headers(out, 200, "Ok", NULL, "text/html", -1, -1);
-	fprintf(out, "<html><h1>%d</h1><h2>%s</h2></html>",
-		++n, rcvbuf);
+	fprintf
+	    (out, "<html><head><meta http-equiv=\"content-type\" "
+	     "content=\"text/html; charset=UTF-8\">"
+	     "<title>%s%s%s</title>"
+	     "<link href=/stylesheet.css rel=stylesheet type=\"text/css\">"
+	     "<link rel=icon href=/favicon.ico>"
+	     "<link rel=\"SHORTCUT ICON\" href=/favicon.ico>"
+	     "<script>\n"
+	     "<!--\n"
+	     "function sf(){document.c.i.focus();}\n"
+	     "// -->\n"
+	     "</script></head>"
+	     "<body bgcolor=#ffffff text=#000000 onLoad=sf()>"
+	     "<form method=get action=c name=c class=sd>"
+	     "<pre>",
+	     web_title ? web_title : "SD (web edition)",
+	     web_pick_string ? ": " : "",
+	     web_pick_string ? web_pick_string : "");
+	linebuffer_emit(linebuffer, out);
+	fprintf
+	    (out, "<a name=cursor></a><input type=text size=40 name=i>"
+	     "</pre>"
+	     "</form>"
+	     "</body></html>");
 	fclose(out);
+	// okay, let's field another request.
     }
+}
+
+/*----------------------------------------------------------------------*/
+/* Tie it all together with a main() method.                            */
+
+
+int main(int argc, char **argv) {
+    int fds[2];
+    int rc;
+    // initialize session key
+    init_session_key();
+    // create session manager socket
+    rc = socketpair(AF_UNIX, SOCK_SEQPACKET, 0, fds);
+    if (rc < 0) {
+	perror("Can't create session manager socketpair");
+	exit(1);
+    }
+    // go off and launch the master server.
+    if (0==fork()) {
+	close(fds[0]);
+	master_server(SERVER_PORT, fds[1]);
+	// this will never return, but still.
+	exit(0);
+    }
+    close(fds[1]);
+    // okay, now let's do some sd initialization.
+    ui_options.reverse_video = true;
+    ui_options.pastel_color = true;
+    ui_options.no_graphics = 2;
+    ioweb ggg(fds[0]);
+    gg = &ggg;
+
+    return sdmain(argc, argv);
 }
