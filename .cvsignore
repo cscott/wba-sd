@@ -4,5 +4,6 @@ deploy
 mkcalls
 sd_calls.dat
 sd_calls.*cache
+sdwebico.h
 sdui-ico.h
 sdui-bmp.h

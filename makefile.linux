@@ -79,6 +79,10 @@ SDTTY_OBJS = sdui-tty.o sdui-ttu.o
 
 SDTTY_LINK_OBJS = $(SDTTY_OBJS) -L. -lsd
 
+SDWEB_OBJS = sdui-tty.o sdui-web.o
+
+SDWEB_LINK_OBJS = $(SDWEB_OBJS) -L. -lsd
+
 MKCALLS_OBJS = mkcalls.o
 
 all: sd sdtty mkcalls sd_calls.dat
@@ -94,6 +98,9 @@ sdtty: libsd.a $(SDTTY_OBJS)
 
 sd: libsd.a $(SD_OBJS)
 	$(CC) -o $@ $(SD_OBJS) -L. -lsd `pkg-config --cflags --libs libglade-2.0 libgnomeui-2.0 librsvg-2.0`
+
+sdweb: libsd.a $(SDWEB_OBJS)
+	$(CC) $(CFLAGS) -o $@ $(SDWEB_LINK_OBJS)
 
 sd_calls.dat: sd_calls.txt mkcalls
 	./mkcalls ./sd_calls.txt
@@ -121,13 +128,18 @@ sdinit.cpp: mapcachefile.h sort.h
 
 mapcachefile.cpp: mapcachefile.h
 
-$(SDLIB_OBJS) $(SD_OBJS) $(SDTTY_OBJS): sd.h database.h paths.h
+$(SDLIB_OBJS) $(SD_OBJS) $(SDTTY_OBJS) $(SDWEB_OBJS): sd.h database.h paths.h
 
+embed: embed.c
+	$(CC) $(CFLAGS) -o $@ $^
+sdwebico.h: embed sd.ico
+	./embed sdweb_ico < sd.ico > $@
+sdui-web.o: sdwebico.h
 sdui-ico.h: sd.ico
 	gdk-pixbuf-csource --raw --name=sdico_inline $< > $@
 
 clean::
-	-$(RM) *.o sd sdtty mkcalls sd_calls.dat tags sdui-ico.h
+	-$(RM) *.o sd sdtty sdweb mkcalls sd_calls.dat tags sdui-ico.h
 
 savesource::
 	tar cvf sd_source $(SDLIB_OBJS:.o=.cpp) $(SDTTY_OBJS:.o=.cpp) \
