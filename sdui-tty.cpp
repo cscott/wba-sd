@@ -1262,7 +1262,7 @@ uint32 iofull::get_number_fields(int nnumbers, bool forbid_zero)
  * is volatile, so we must copy it if we need it to stay around.
  */
 
-void iofull::add_new_line(char the_line[], uint32 drawing_picture)
+void iofull::add_new_line(const char the_line[], uint32 drawing_picture)
 {
     put_line(the_line);
     put_line("\n");

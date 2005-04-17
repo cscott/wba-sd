@@ -3758,7 +3758,7 @@ class iobase {
    virtual int do_abort_popup() = 0;
    virtual uims_reply get_startup_command() = 0;
    virtual void set_window_title(char s[]) = 0;
-   virtual void add_new_line(char the_line[], uint32 drawing_picture) = 0;
+   virtual void add_new_line(const char the_line[], uint32 drawing_picture)= 0;
    virtual void reduce_line_count(int n) = 0;
    virtual void update_resolve_menu(command_kind goal, int cur, int max,
                                     resolver_display_state state) = 0;
@@ -3798,7 +3798,7 @@ class iofull : public iobase {
    int do_abort_popup();
    uims_reply get_startup_command();
    void set_window_title(char s[]);
-   void add_new_line(char the_line[], uint32 drawing_picture);
+   void add_new_line(const char the_line[], uint32 drawing_picture);
    void reduce_line_count(int n);
    void update_resolve_menu(command_kind goal, int cur, int max,
                             resolver_display_state state);

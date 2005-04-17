@@ -2317,7 +2317,7 @@ uint32 iofull::get_number_fields(int nnumbers, bool forbid_zero)
 }
 
 
-void iofull::add_new_line(char the_line[], uint32 drawing_picture)
+void iofull::add_new_line(const char the_line[], uint32 drawing_picture)
 {
    char buf[3*strlen(the_line)+2], *cp;
    bool in_picture, squeeze_newline;
