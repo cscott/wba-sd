@@ -139,7 +139,7 @@ sdui-ico.h: sd.ico
 	gdk-pixbuf-csource --raw --name=sdico_inline $< > $@
 
 clean::
-	-$(RM) *.o sd sdtty sdweb mkcalls sd_calls.dat tags sdui-ico.h
+	-$(RM) *.o sd sdtty sdweb mkcalls sd_calls.dat tags sdui-ico.h libsd.a
 
 savesource::
 	tar cvf sd_source $(SDLIB_OBJS:.o=.cpp) $(SDTTY_OBJS:.o=.cpp) \
