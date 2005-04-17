@@ -672,6 +672,7 @@ static bool get_user_input(char *prompt, int which)
          // when '?' is typed.  So we watch for anomalous values.
          if (match_lines < 2) match_lines = 2;
          else if (match_lines > 50) match_lines = 25;
+	 if (ttu_unlimited_scrollback()) match_lines = 1000000;
          if (ui_options.diagnostic_mode) match_lines = 1000000;
          match_counter = match_lines-1;    // Last line used for "--More--" prompt.
          showing_has_stopped = false;

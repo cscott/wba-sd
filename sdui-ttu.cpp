@@ -260,6 +260,10 @@ extern int get_lines_for_more()
    else
       return get_nocurses_term_lines();
 }
+extern bool ttu_unlimited_scrollback()
+{
+   return false;
+}
 
 
 #ifndef NO_CURSES

@@ -5007,6 +5007,10 @@ extern void ttu_terminate();
 
 extern int get_lines_for_more();
 
+/* Return true for 'tty-like' devices which don't require 'more' processing;
+ * ie, they have an unlimited scrollback buffer. */
+extern bool ttu_unlimited_scrollback();
+
 /* Clear the current line, leave cursor at left edge. */
 extern void clear_line();
 
