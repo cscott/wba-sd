@@ -85,7 +85,7 @@ SDWEB_LINK_OBJS = $(SDWEB_OBJS) -L. -lsd
 
 MKCALLS_OBJS = mkcalls.o
 
-all: sd sdtty mkcalls sd_calls.dat
+all: sd sdtty sdweb mkcalls sd_calls.dat
 
 mkcalls: $(MKCALLS_OBJS)
 	$(CC) $(CFLAGS) -o $@ $(MKCALLS_OBJS)
