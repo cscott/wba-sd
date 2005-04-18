@@ -54,7 +54,9 @@
  * why does 'more processing' not work?
  * make incorrect commands do something sensible
  * correct formation output (graphics or colors)
- * html-escape the emitted text (< > & etc)
+ * add multiple stylesheets
+ * add 'please cache me headers' (#define)
+ * prettify session setup/
  * handle 'exit from program' more gracefully.
  */
 
@@ -454,6 +456,8 @@ static char stylesheet_css[] = {
     "body{font-family:arial,sans-serif;"
     "background-color:#333;color:#7CFE5A;}\n"
     "form.sd{font: bold 140% \"Andale Mono\", monospace;}\n"
+    ".p0,.p1,.p4,.p5{color:#f0f;}\n"
+    ".p2,.p3,.p6,.p7{color:#0ff;}\n"
 };
 
 // parse one http request.
@@ -679,10 +683,8 @@ void iofull::set_pick_string(const char *str) {
 }
 void iofull::final_initialize()
 {
-#if 0
    if (!sdtty_no_console)
       ui_options.use_escapes_for_drawing_people = 1;
-#endif
 }
 void ttu_initialize() { /* do nothing, for now */ }
 void ttu_terminate() { /* nothing to tear down */ }
@@ -779,6 +781,14 @@ int get_char() {
 static void
 html_escape_and_emit(const char *line, void *cl) {
     FILE *out = (FILE *)cl;
+    int personidx, persondir;
+    // order of the tests here keeps us from reading past the end of the line:
+    if (line[0]=='<'&& line[strlen(line)-1]=='\n'&& line[strlen(line)-2]=='>'){
+	// already HTML-encoded, pass thru
+	fputs(line, out);
+	return;
+    }
+    // okay, HTML-encode this line.
     for (const char *cp = line; *cp; cp++)
 	switch(*cp) {
 	case '\n':
@@ -789,6 +799,16 @@ html_escape_and_emit(const char *line, void *cl) {
 	    fputs("&gt;", out); break;
 	case '&':
 	    fputs("&amp;", out); break;
+	// escapes for drawing dancers.
+	case '\013': /* a dancer */
+	    personidx = (*++cp) & 0x7;
+	    persondir = (*++cp) & 0xF;
+	    fprintf(out, "<span class=\"p%d d%d\">",personidx, persondir);
+	    fprintf(out, "&nbsp;%c%c%c",
+		    ui_options.pn1[personidx], ui_options.pn2[personidx],
+		    ui_options.direc[persondir]);
+	    fprintf(out, "</span>");
+	    break;
 #if 1 /* take it or leave it */
 	case ' ':
 	    if (cp[1]==' ' || cp==line || cp[-1]==' ') {
