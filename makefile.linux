@@ -97,10 +97,10 @@ sdtty: libsd.a $(SDTTY_OBJS)
 	$(CC) $(CFLAGS) -o $@ $(SDTTY_LINK_OBJS) $(TTY_LIBS)
 
 sd: libsd.a $(SD_OBJS)
-	$(CC) -o $@ $(SD_OBJS) -L. -lsd `pkg-config --cflags --libs libglade-2.0 libgnomeui-2.0 librsvg-2.0`
+	$(CC) -o $@ $(SD_OBJS) -L. -lsd `pkg-config --libs libglade-2.0 libgnomeui-2.0 librsvg-2.0`
 
 sdweb: libsd.a $(SDWEB_OBJS)
-	$(CC) $(CFLAGS) -o $@ $(SDWEB_LINK_OBJS)
+	$(CC) $(CFLAGS) -o $@ $(SDWEB_LINK_OBJS) `pkg-config --libs librsvg-2.0`
 
 sd_calls.dat: sd_calls.txt mkcalls
 	./mkcalls ./sd_calls.txt
@@ -113,6 +113,8 @@ sd_calls.dat: sd_calls.txt mkcalls
 .cpp.o:
 	$(CC) $(CFLAGS) -c $<
 
+sdui-web.o: sdui-web.cpp sdwebico.h sdui-chk.h
+	$(CC) $(CFLAGS) `pkg-config --cflags librsvg-2.0` -c $<
 sdui-gtk.o: sdui-gtk.cpp sdui-gtk.h sdui-ico.h sdui-chk.h
 	$(CC) $(CFLAGS) `pkg-config --cflags libglade-2.0 libgnomeui-2.0 librsvg-2.0` -c $<
 sdui-ttu.o: sdui-ttu.cpp
@@ -134,7 +136,6 @@ embed: embed.c
 	$(CC) $(CFLAGS) -o $@ $^
 sdwebico.h: embed sd.ico
 	./embed sdweb_ico < sd.ico > $@
-sdui-web.o: sdwebico.h
 sdui-ico.h: sd.ico
 	gdk-pixbuf-csource --raw --name=sdico_inline $< > $@
 

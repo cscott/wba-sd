@@ -37,8 +37,12 @@
 #include <netinet/in.h>
 #include <netdb.h>
 
+#include <glib/gprintf.h>
+#include <librsvg/rsvg.h>
+
 #include "sd.h"
-#include "sdwebico.h"
+#include "sdwebico.h" // favicon image (sd icon)
+#include "sdui-chk.h" // checker images
 #define SERVER_PORT 8081
 #define BUFSIZE 1024
 #define SESSION_ID_MAXLEN 64
@@ -58,7 +62,10 @@
 /* XXX TO DO:
  * why does 'more processing' not work?
  * make incorrect commands do something sensible
- * correct formation output (graphics or colors)
+ * store color settings in session.
+ * pass in_picture over from put_line
+ * alpha-composite fancy graphics on server side.
+ * use better text replacement mechanism.
  * prettify session setup/
  * handle 'exit from program' more gracefully.
  */
@@ -455,12 +462,101 @@ void session_server(int session_mgr_fd) {
 }
 
 /*-----------------------------------------------------------------------*/
+/* CHECKER GENERATION                                                    */
+/*  -> checkers are parameterized SVG files; generate PNGs on-the-fly    */
+#define BMP_PERSON_SIZE 36 /* size of the checkers */
+static void
+icon_size_callback(gint *width, gint *height, gpointer user_data) {
+   *width = *height = BMP_PERSON_SIZE;
+}
+static GdkPixbuf *
+make_svg_icon(const gchar *xml_template, ...) {
+   RsvgHandle *handle;
+   GdkPixbuf *result;
+   GError *err;
+   va_list ap;
+   gchar *buf;
+   int n;
+   va_start(ap, xml_template);
+   n = g_vasprintf(&buf, xml_template, ap);
+   va_end(ap);
+   handle = rsvg_handle_new();
+   rsvg_handle_set_size_callback(handle, icon_size_callback, NULL, NULL);
+   if (rsvg_handle_write(handle, (guchar*)buf, n, &err) &&
+       rsvg_handle_close(handle, &err)) {
+      result = rsvg_handle_get_pixbuf(handle);
+      rsvg_handle_free(handle);
+      return result;
+   }
+   g_error("%s", err->message);
+   return NULL; // unreachable.
+}
+static gboolean
+emit_function(const gchar *buf, gsize count, GError **error, gpointer data) {
+   return 1==fwrite(buf, count, 1, (FILE*)data);
+}
+static int
+emit_checker(FILE *out, int personidx, int persondir, int color) {
+   char *icon_color[8] = { // The internal color scheme is:
+      "112233", // 0 - not used
+      "808000", // 1 - substitute yellow
+      "ff0000", // 2 - red
+      "00ff00", // 3 - green
+      "ffff00", // 4 - yellow
+      "0000ff", // 5 - blue
+      "ff00ff", // 6 - magenta
+      "00ffff", // 7 - cyan
+   };
+   char *fg = "ffffff";
+   if (personidx<0 || personidx>7 ||
+       persondir<0 || persondir>3 ||
+       color < 0   || color > 7)
+      return send_error(out, 404, "Not Found", NULL, "Bad checker param.");
+   GdkPixbuf *chk = make_svg_icon
+      ( (personidx&1) ? sd_girl_svg : sd_boy_svg,
+	90*persondir, icon_color[color], fg, fg,
+	90*persondir, 1+(personidx/2));
+   if (!chk)
+      return send_error(out, 404, "Not Found", NULL, "Can't make checker.");
+   send_headers(out, 200, "Ok", HEADERS_CACHEABLE, "image/png", -1, -1);
+   gdk_pixbuf_save_to_callback(chk, emit_function, out, "png", NULL, NULL);
+   fflush(out);
+   g_object_unref(chk);
+   return 0; // success.
+}
+static int
+emit_phantom(FILE *out) {
+   char *fg = "ffffff";
+   GdkPixbuf *chk = make_svg_icon(sd_phantom_svg, fg);
+   if (!chk)
+      return send_error(out, 404, "Not Found", NULL, "Can't make phantom.");
+   send_headers(out, 200, "Ok", HEADERS_CACHEABLE, "image/png", -1, -1);
+   gdk_pixbuf_save_to_callback(chk, emit_function, out, "png", NULL, NULL);
+   fflush(out);
+   g_object_unref(chk);
+   return 0; // success.
+}
+static int
+emit_space(FILE *out, int fourths) {
+   if (fourths<1 || fourths>4)
+      return send_error(out, 404, "Not Found", NULL, "Bad space param.");
+   GdkPixbuf *chk = gdk_pixbuf_new
+      (GDK_COLORSPACE_RGB, TRUE, 8, fourths*BMP_PERSON_SIZE/4,BMP_PERSON_SIZE);
+   if (!chk)
+      return send_error(out, 404, "Not Found", NULL, "Can't make phantom.");
+   send_headers(out, 200, "Ok", HEADERS_CACHEABLE, "image/png", -1, -1);
+   gdk_pixbuf_save_to_callback(chk, emit_function, out, "png", NULL, NULL);
+   fflush(out);
+   g_object_unref(chk);
+   return 0; // success.
+}
+/*-----------------------------------------------------------------------*/
 /* HTTP SERVER                                                           */
 
 static char common_css[] = {
     "body{font-family:arial,sans-serif;"
     "background-color:#333;color:#7CFE5A;}\n"
-    "form.sd{font: bold 140% \"Andale Mono\", monospace;}\n"
+    "form.sd{font: bold 130% \"Andale Mono\", monospace;}\n"
 };
 static char gender_css[] = {
     ".p0,.p2,.p4,.p6{color:#0ff;}\n"
@@ -495,6 +591,7 @@ serve_one(int session_mgr_fd, int socket) {
     char line[BUFSIZE], method[BUFSIZE], path[BUFSIZE], protocol[BUFSIZE];
     char session[BUFSIZE], *cmd;
     FILE *in = fdopen(socket, "a+b");
+    int checker[3];
     int sess_fd, n;
     // get incoming request (method, path, and protocol)
     if (NULL==fgets(line, sizeof(line), in))
@@ -538,6 +635,18 @@ serve_one(int session_mgr_fd, int socket) {
 	    fclose(in);
 	    exit(0);
 	}
+    // checker images
+    n=0;
+    if (3 == sscanf(path, "/p%dd%dc%d.png%n",
+		    &(checker[0]), &(checker[1]), &(checker[2]), &n) &&
+	n == (signed) strlen(path))
+       return emit_checker(in, checker[0], checker[1], checker[2]);
+    n=0;
+    if (1 == sscanf(path, "/s%d.png%n", &(checker[0]), &n) &&
+	n == (signed) strlen(path))
+       return emit_space(in, checker[0]);
+    if (strcmp(path, "/ph.png")==0)
+       return emit_phantom(in);
     // make sure there's a session identifier.
     if (1 != sscanf(path, "/%[^ /]/%n", session, &n)) {
 	// create a new session and redirect to it.
@@ -817,6 +926,19 @@ int get_char() {
     return c;
 }
 
+static const char *
+html_escape(char c) {
+   static char buf[8]={0}, *cp=buf;
+   switch(c) {
+   case '<': return "&lt;";
+   case '>': return "&gt;";
+   case '&': return "&amp;";
+   default: 
+      cp+=2; if (cp-buf>=8) cp=buf;
+      *cp = c;
+      return cp; // only mildly re-entrant
+   }
+}
 static void
 html_escape_and_emit(const char *line, void *cl) {
     FILE *out = (FILE *)cl;
@@ -832,22 +954,17 @@ html_escape_and_emit(const char *line, void *cl) {
 	switch(*cp) {
 	case '\n':
 	    fputs("<br>\n", out); break;
-	case '<':
-	    fputs("&lt;", out); break;
-	case '>':
-	    fputs("&gt;", out); break;
-	case '&':
-	    fputs("&amp;", out); break;
 	// escapes for drawing dancers.
 	case '\013': /* a dancer */
 	    personidx = (*++cp) & 0x7;
 	    persondir = (*++cp) & 0xF;
-	    fprintf(out, "<span class=\"p%d d%d\">", personidx, persondir);
-	    fprintf(out, "<span class=text>");
-	    fprintf(out, "&nbsp;%c%c%c",
-		    ui_options.pn1[personidx], ui_options.pn2[personidx],
-		    ui_options.direc[persondir]);
-	    fprintf(out, "</span></span>");
+	    fprintf(out, "<tt>");
+	    fprintf(out, "<img alt=\" %s%s%s\" src=\"/p%dd%dc%d.png\">",
+		    html_escape(ui_options.pn1[personidx]),
+		    html_escape(ui_options.pn2[personidx]),
+		    html_escape(ui_options.direc[persondir]),
+		    personidx, 3-(persondir&3), color_index_list[personidx]);
+	    fprintf(out, "</tt>");
 	    break;
 #if 1 /* take it or leave it */
 	case ' ':
@@ -857,7 +974,7 @@ html_escape_and_emit(const char *line, void *cl) {
 	    // else, ** FALL THROUGH **
 #endif
 	default:
-	    fputc(*cp, out); break;
+	    fputs(html_escape(*cp), out); break;
 	}
 }
 
@@ -916,11 +1033,11 @@ wait_for_command(char *command, int command_len) {
 	     "<title>%s%s%s</title>"
 	     "<link href=/common.css rel=stylesheet>"
 	     "<link href=/gender.css rel=stylesheet title=\"Color by Gender\">"
-	     "<link href=/genderimg.css rel=stylesheet title=\"Color by Gender\" media=\"screen,print\">"
+	     //"<link href=/genderimg.css rel=stylesheet title=\"Color by Gender\" media=\"screen,print\">"
 	     "<link href=/corner.css rel=\"alternate stylesheet\" title=\"Color by Corner\">"
-	     "<link href=/cornersimg.css rel=\"alternate stylesheet\" title=\"Color by Corner\" media=\"screen,print\">"
+	     //"<link href=/cornersimg.css rel=\"alternate stylesheet\" title=\"Color by Corner\" media=\"screen,print\">"
 	     "<link href=/couple.css rel=\"alternate stylesheet\" title=\"Color by Couple\">"
-	     "<link href=/coupleimg.css rel=\"alternate stylesheet\" title=\"Color by Couple\" media=\"screen,print\">"
+	     //"<link href=/coupleimg.css rel=\"alternate stylesheet\" title=\"Color by Couple\" media=\"screen,print\">"
 	     "<link rel=icon href=/favicon.ico>"
 	     "<link rel=\"SHORTCUT ICON\" href=/favicon.ico>"
 	     "<script>\n"
@@ -951,6 +1068,8 @@ wait_for_command(char *command, int command_len) {
 int main(int argc, char **argv) {
     int fds[2];
     int rc;
+    // initialize glib
+    g_type_init();
     // initialize session key
     init_session_key();
     // create session manager socket
