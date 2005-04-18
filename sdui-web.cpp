@@ -45,17 +45,20 @@
 #define SESSION_FD 5 /* arbitrary choice */
 #define SESSION_TIMEOUT_SECS 600 /* ten minutes */
 
-#define PROG_NAME "sd_web"
+#define PROG_NAME "sdweb"
 #define PROG_URL "http://cscott.net/Projects/Sd/"
 #define PROTOCOL "HTTP/1.0"
 #define RFC1123FMT "%a, %d %b %Y %H:%M:%S GMT"
+
+#define HEADERS_CACHEABLE \
+	"Expires: Fri, 1 Jan 2038 00:00:00 GMT\r\n" \
+	"Last-Modified: Mon, 18 Apr 2005 00:00:00 GMT\r\n" \
+	"Cache-Control: max-age=36000"
 
 /* XXX TO DO:
  * why does 'more processing' not work?
  * make incorrect commands do something sensible
  * correct formation output (graphics or colors)
- * add multiple stylesheets
- * add 'please cache me headers' (#define)
  * prettify session setup/
  * handle 'exit from program' more gracefully.
  */
@@ -190,8 +193,9 @@ delete_from_session_table(char *session_id) {
 /*-------------------------------------------------------------------*/
 /*  HTTP/HTML-related stuff                                          */
 static void
-send_headers(FILE *out, int status, char* title, char* extra_header,
-	     char* mime_type, off_t length, time_t mod ) {
+send_headers(FILE *out, int status, const char* title,
+	     const char* extra_header, const char* mime_type,
+	     off_t length, time_t mod ) {
     time_t now;
     char timebuf[100];
 
@@ -214,7 +218,8 @@ send_headers(FILE *out, int status, char* title, char* extra_header,
     fprintf(out, "\r\n" );
 }
 static int
-send_error(FILE *out, int status, char* title, char* extra_header, char* text ) {
+send_error(FILE *out, int status, const char* title, const char* extra_header,
+	   const char* text ) {
     send_headers(out, status, title, extra_header, "text/html", -1, -1 );
     fprintf(out, "<HTML><HEAD><TITLE>%d %s</TITLE></HEAD>\n<BODY BGCOLOR=\"#cc9999\"><H4>%d %s</H4>\n", status, title, status, title );
     fprintf(out, "%s\n", text );
@@ -452,12 +457,36 @@ void session_server(int session_mgr_fd) {
 /*-----------------------------------------------------------------------*/
 /* HTTP SERVER                                                           */
 
-static char stylesheet_css[] = {
+static char common_css[] = {
     "body{font-family:arial,sans-serif;"
     "background-color:#333;color:#7CFE5A;}\n"
     "form.sd{font: bold 140% \"Andale Mono\", monospace;}\n"
-    ".p0,.p1,.p4,.p5{color:#f0f;}\n"
-    ".p2,.p3,.p6,.p7{color:#0ff;}\n"
+};
+static char gender_css[] = {
+    ".p0,.p2,.p4,.p6{color:#0ff;}\n"
+    ".p1,.p3,.p5,.p7{color:#f0f;}\n"
+};
+static char genderimg_css[] = {
+    "span.p0 span.text{display:none;}\n"
+    "span.p0{background:url(\"/favicon.ico\") no-repeat left top;padding-left:32px;line-height:32px;}\n"
+};
+static char corner_css[] = {
+    ".p0,.p7{color:#f00;}\n"
+    ".p1,.p2{color:#0f0;}\n"
+    ".p3,.p4{color:#00f;}\n"
+    ".p5,.p6{color:#ff0;}\n"
+};
+static char cornerimg_css[] = {
+    "span span.text{display:none;}\n"
+};
+static char couple_css[] = {
+    ".p0,.p1{color:#f00;}\n"
+    ".p2,.p3{color:#0f0;}\n"
+    ".p4,.p5{color:#00f;}\n"
+    ".p6,.p7{color:#ff0;}\n"
+};
+static char coupleimg_css[] = {
+    "span span.text{display:none;}\n"
 };
 
 // parse one http request.
@@ -485,20 +514,30 @@ serve_one(int session_mgr_fd, int socket) {
 	return send_error(in, 400, "Bad Request", NULL,
 			  "Path must start with slash.");
     // some special files
-    if (strcmp(path, "/favicon.ico")==0) {
-	send_headers(in, 200, "Ok", NULL, "image/x-icon",
-		     sizeof(sdweb_ico), -1);
-	fwrite(sdweb_ico, sizeof(sdweb_ico), 1, in);
-	fclose(in);
-	exit(0);
-    }
-    if (strcmp(path, "/stylesheet.css")==0) {
-	send_headers(in, 200, "Ok", NULL, "text/css",
-		     sizeof(stylesheet_css)-1, -1);
-	fwrite(stylesheet_css, sizeof(stylesheet_css)-1, 1, in);
-	fclose(in);
-	exit(0);
-    }
+    static struct {
+	const char *filename;
+	const char *type;
+	void *content;
+	size_t size;
+    } static_content[] = {
+	{ "/favicon.ico", "image/x-icon", sdweb_ico, sizeof(sdweb_ico) },
+	{ "/common.css", "text/css", common_css, sizeof(common_css)-1 },
+	{ "/gender.css", "text/css", gender_css, sizeof(gender_css)-1 },
+	{ "/genderimg.css", "text/css", genderimg_css, sizeof(genderimg_css)-1 },
+	{ "/corner.css", "text/css", corner_css, sizeof(corner_css)-1 },
+	{ "/cornerimg.css", "text/css", cornerimg_css, sizeof(cornerimg_css)-1 },
+	{ "/couple.css", "text/css", couple_css, sizeof(couple_css)-1 },
+	{ "/coupleimg.css", "text/css", coupleimg_css, sizeof(coupleimg_css)-1 },
+	{ NULL, NULL, NULL, 0 }
+    };
+    for (int i=0; static_content[i].filename; i++)
+	if (strcmp(path, static_content[i].filename)==0) {
+	    send_headers(in, 200, "Ok", HEADERS_CACHEABLE,
+			 static_content[i].type, static_content[i].size, -1);
+	    fwrite(static_content[i].content, static_content[i].size, 1, in);
+	    fclose(in);
+	    exit(0);
+	}
     // make sure there's a session identifier.
     if (1 != sscanf(path, "/%[^ /]/%n", session, &n)) {
 	// create a new session and redirect to it.
@@ -803,11 +842,12 @@ html_escape_and_emit(const char *line, void *cl) {
 	case '\013': /* a dancer */
 	    personidx = (*++cp) & 0x7;
 	    persondir = (*++cp) & 0xF;
-	    fprintf(out, "<span class=\"p%d d%d\">",personidx, persondir);
+	    fprintf(out, "<span class=\"p%d d%d\">", personidx, persondir);
+	    fprintf(out, "<span class=text>");
 	    fprintf(out, "&nbsp;%c%c%c",
 		    ui_options.pn1[personidx], ui_options.pn2[personidx],
 		    ui_options.direc[persondir]);
-	    fprintf(out, "</span>");
+	    fprintf(out, "</span></span>");
 	    break;
 #if 1 /* take it or leave it */
 	case ' ':
@@ -869,12 +909,18 @@ wait_for_command(char *command, int command_len) {
 	    return;
 	}
 	// ok, just a refresh.  emit the transcript.
-	send_headers(out, 200, "Ok", NULL, "text/html", -1, -1);
+	send_headers(out, 200, "Ok", "Content-Style-Type: text/css", "text/html", -1, -1);
 	fprintf
 	    (out, "<html><head><meta http-equiv=\"content-type\" "
 	     "content=\"text/html; charset=UTF-8\">"
 	     "<title>%s%s%s</title>"
-	     "<link href=/stylesheet.css rel=stylesheet type=\"text/css\">"
+	     "<link href=/common.css rel=stylesheet>"
+	     "<link href=/gender.css rel=stylesheet title=\"Color by Gender\">"
+	     "<link href=/genderimg.css rel=stylesheet title=\"Color by Gender\" media=\"screen,print\">"
+	     "<link href=/corner.css rel=\"alternate stylesheet\" title=\"Color by Corner\">"
+	     "<link href=/cornersimg.css rel=\"alternate stylesheet\" title=\"Color by Corner\" media=\"screen,print\">"
+	     "<link href=/couple.css rel=\"alternate stylesheet\" title=\"Color by Couple\">"
+	     "<link href=/coupleimg.css rel=\"alternate stylesheet\" title=\"Color by Couple\" media=\"screen,print\">"
 	     "<link rel=icon href=/favicon.ico>"
 	     "<link rel=\"SHORTCUT ICON\" href=/favicon.ico>"
 	     "<script>\n"
