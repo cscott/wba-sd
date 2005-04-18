@@ -647,10 +647,12 @@ static void linebuffer_delete(int n) {
 	free(lb);
     }
 }
-static void linebuffer_emit(struct linebuffer *lb, FILE *out) {
+static void linebuffer_emit(struct linebuffer *lb,
+			    void(*handle_line)(const char *line,void *closure),
+			    void *closure) {
     if (lb==NULL) return; // done.
-    linebuffer_emit(lb->next, out);
-    fputs(lb->line, out);
+    linebuffer_emit(lb->next, handle_line, closure);
+    handle_line(lb->line, closure);
 }
     
 bool ioweb::init_step(init_callback_state s, int n) {
@@ -774,6 +776,31 @@ int get_char() {
     return c;
 }
 
+static void
+html_escape_and_emit(const char *line, void *cl) {
+    FILE *out = (FILE *)cl;
+    for (const char *cp = line; *cp; cp++)
+	switch(*cp) {
+	case '\n':
+	    fputs("<br>\n", out); break;
+	case '<':
+	    fputs("&lt;", out); break;
+	case '>':
+	    fputs("&gt;", out); break;
+	case '&':
+	    fputs("&amp;", out); break;
+#if 1 /* take it or leave it */
+	case ' ':
+	    if (cp[1]==' ' || cp==line || cp[-1]==' ') {
+		fputs("&nbsp;", out); break;
+	    }
+	    // else, ** FALL THROUGH **
+#endif
+	default:
+	    fputc(*cp, out); break;
+	}
+}
+
 /* web server event loop. */
 static void
 wait_for_command(char *command, int command_len) {
@@ -836,15 +863,13 @@ wait_for_command(char *command, int command_len) {
 	     "// -->\n"
 	     "</script></head>"
 	     "<body bgcolor=#ffffff text=#000000 onLoad=sf()>"
-	     "<form method=get action=c name=c class=sd>"
-	     "<pre>",
+	     "<form method=get action=c name=c class=sd>",
 	     web_title ? web_title : "SD (web edition)",
 	     web_pick_string ? ": " : "",
 	     web_pick_string ? web_pick_string : "");
-	linebuffer_emit(linebuffer, out);
+	linebuffer_emit(linebuffer, html_escape_and_emit, (void*) out);
 	fprintf
 	    (out, "<a name=cursor></a><input type=text size=40 name=i>"
-	     "</pre>"
 	     "<p><input type=submit name=s value=Go></p>"
 	     "</form>"
 	     "</body></html>");
