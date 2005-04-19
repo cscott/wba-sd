@@ -63,9 +63,8 @@
  * why does 'more processing' not work?
  * make incorrect commands do something sensible
  * store color settings in session.
- * pass in_picture over from put_line (optional, we can figure it out)
- * alpha-composite fancy graphics on server side.
- * use better text replacement mechanism.
+ * [pass in_picture over from put_line (optional, we can figure it out)]
+ * use better image/text replacement mechanism.
  * prettify session setup/
  * handle 'exit from program' more gracefully.
  */
@@ -472,7 +471,7 @@ icon_size_callback(gint *width, gint *height, gpointer user_data) {
 static GdkPixbuf *
 make_svg_icon(const gchar *xml_template, ...) {
    RsvgHandle *handle;
-   GdkPixbuf *result;
+   GdkPixbuf *result, *tmp;
    GError *err;
    va_list ap;
    gchar *buf;
@@ -484,8 +483,14 @@ make_svg_icon(const gchar *xml_template, ...) {
    rsvg_handle_set_size_callback(handle, icon_size_callback, NULL, NULL);
    if (rsvg_handle_write(handle, (guchar*)buf, n, &err) &&
        rsvg_handle_close(handle, &err)) {
-      result = rsvg_handle_get_pixbuf(handle);
+      tmp = rsvg_handle_get_pixbuf(handle);
       rsvg_handle_free(handle);
+      // composite server-side with background color; simple devices don't
+      // handle alpha channels well.
+      result = gdk_pixbuf_composite_color_simple
+	  (tmp, BMP_PERSON_SIZE, BMP_PERSON_SIZE, GDK_INTERP_NEAREST, 0xff, 2,
+	   0x333333, 0x333333); // xxx magic number; should come from bg color
+      g_object_unref(tmp);
       return result;
    }
    g_error("%s", err->message);
