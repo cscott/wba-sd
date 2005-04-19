@@ -63,7 +63,7 @@
  * why does 'more processing' not work?
  * make incorrect commands do something sensible
  * store color settings in session.
- * pass in_picture over from put_line
+ * pass in_picture over from put_line (optional, we can figure it out)
  * alpha-composite fancy graphics on server side.
  * use better text replacement mechanism.
  * prettify session setup/
@@ -832,7 +832,7 @@ void iofull::set_pick_string(const char *str) {
 void iofull::final_initialize()
 {
    if (!sdtty_no_console)
-      ui_options.use_escapes_for_drawing_people = 1;
+      ui_options.use_escapes_for_drawing_people = 2;
 }
 void ttu_initialize() { /* do nothing, for now */ }
 void ttu_terminate() { /* nothing to tear down */ }
@@ -949,6 +949,9 @@ html_escape_and_emit(const char *line, void *cl) {
 	fputs(line, out);
 	return;
     }
+    // reverse-engineer 'in_picture' (slight hack)
+    bool in_picture = strchr(line, '\013')!=NULL || strchr(line, '\014')!=NULL;
+    if (in_picture) fprintf(out, "<tt>");
     // okay, HTML-encode this line.
     for (const char *cp = line; *cp; cp++)
 	switch(*cp) {
@@ -958,24 +961,46 @@ html_escape_and_emit(const char *line, void *cl) {
 	case '\013': /* a dancer */
 	    personidx = (*++cp) & 0x7;
 	    persondir = (*++cp) & 0xF;
-	    fprintf(out, "<tt>");
-	    fprintf(out, "<img alt=\" %s%s%s\" src=\"/p%dd%dc%d.png\">",
+	    fprintf(out,
+		    "<img class=\"p%d\" alt=\"&nbsp;%s%s%s\" "
+		    "src=\"/p%dd%dc%d.png\">", personidx,
 		    html_escape(ui_options.pn1[personidx]),
 		    html_escape(ui_options.pn2[personidx]),
 		    html_escape(ui_options.direc[persondir]),
 		    personidx, 3-(persondir&3), color_index_list[personidx]);
-	    fprintf(out, "</tt>");
 	    break;
-#if 1 /* take it or leave it */
+	case '\014': /* a phantom */
+	    fprintf(out, "<img alt=\"&nbsp;&nbsp;.&nbsp;\" src=\"/ph.png\">");
+	    break;
+	case '6': /* one person-width */
+	    if (!in_picture) goto normal;
+	    fprintf(out, "<img alt=\"&nbsp;&nbsp;&nbsp;&nbsp;\" src=\"/s4.png\">");
+	    break;
+	case '5': /* half a person-width */
+	    if (!in_picture) goto normal;
+	    fprintf(out, "<img alt=\"&nbsp;&nbsp;\" src=\"/s2.png\">");
+	    break;
+	case '8': /* ditto, but only one space if ASCII */
+	    if (!in_picture) goto normal;
+	    fprintf(out, "<img alt=\"&nbsp;\" src=\"/s2.png\">");
+	    break;
+	case '9': /* three-quarters a person-width */
+	    if (!in_picture) goto normal;
+	    fprintf(out, "<img alt=\"&nbsp;&nbsp;&nbsp;\" src=\"/s3.png\">");
+	    break;
 	case ' ':
+	    if (in_picture) continue; // squeeze people together
+#if 1 /* take it or leave it */
 	    if (cp[1]==' ' || cp==line || cp[-1]==' ') {
 		fputs("&nbsp;", out); break;
 	    }
 	    // else, ** FALL THROUGH **
 #endif
 	default:
+	normal:
 	    fputs(html_escape(*cp), out); break;
 	}
+    if (in_picture) fprintf(out, "</tt>");
 }
 
 /* web server event loop. */
@@ -1081,7 +1106,6 @@ int main(int argc, char **argv) {
     // okay, now let's do some sd initialization.
     ui_options.reverse_video = true;
     ui_options.pastel_color = true;
-    ui_options.no_graphics = 2;
     ioweb ggg(fds[0]);
     gg = &ggg;
     // go off and launch the master server.
