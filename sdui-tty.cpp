@@ -494,6 +494,7 @@ static bool prompt_for_more_output()
    put_line("--More--");
 
    for (;;) {
+      user_input[0] = '\0';
       int c = get_char();
       clear_line();    // Erase the "more" line; next item goes on that line.
 
@@ -1077,6 +1078,7 @@ static int confirm(char *question)
    for (;;) {
       put_line(question);
       put_line(" ");
+      user_input[0] = '\0';
       char c = get_char();
       if ((c=='n') || (c=='N')) {
          put_line("no\n");
