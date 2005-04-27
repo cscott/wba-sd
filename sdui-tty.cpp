@@ -107,6 +107,9 @@ void refresh_input()
    put_line(user_input_prompt);
 }
 
+/* helper function for the sdweb ui */
+const char *sdtty_user_input() { return user_input; }
+
 
 /* This tells how many of the last lines currently on the screen contain
    the text that the main program thinks comprise the transcript.  That is,

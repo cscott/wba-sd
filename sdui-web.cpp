@@ -488,7 +488,7 @@ make_svg_icon(const gchar *xml_template, ...) {
       // composite server-side with background color; simple devices don't
       // handle alpha channels well.
       result = gdk_pixbuf_composite_color_simple
-	  (tmp, BMP_PERSON_SIZE, BMP_PERSON_SIZE, GDK_INTERP_NEAREST, 0xff, 2,
+	  (tmp, BMP_PERSON_SIZE, BMP_PERSON_SIZE, GDK_INTERP_BILINEAR, 0xff, 2,
 	   0x333333, 0x333333); // xxx magic number; should come from bg color
       g_object_unref(tmp);
       return result;
@@ -766,7 +766,7 @@ void master_server(unsigned short port, int session_mgr_fd) {
 
 /*----------------------------------------------------------------------*/
 /* SD UI CODE! (finally!)                                               */
-static void wait_for_command(char *command, int command_len);
+static void wait_for_command(char *command, int command_len, const char *prefix);
 class ioweb : public iofull { // allow subclassing methods in iofull
 public:
     int session_mgr_fd;
@@ -909,14 +909,19 @@ void get_string(char *dest, int max) {
 	char *cp = input_buffer + strlen(input_buffer) - 1;
 	if (*cp=='\n') *cp=0;
     } else
-	wait_for_command(dest, max);
+	wait_for_command(dest, max, "");
     // echo this string.
     put_line(dest);
     put_line("\n");
 }
+extern const char *sdtty_user_input();
 int get_char() {
     while (!input_buffer[0]) {
-	wait_for_command(input_buffer, sizeof(input_buffer)-1);
+	const char *ui = sdtty_user_input();
+	for (int i=strlen(ui); i>=0; i--)
+	    rubout(); // erase existing prefix
+	wait_for_command(input_buffer, sizeof(input_buffer), sdtty_user_input());
+	put_line(ui); // replace existing prefix
 	// command should end in '\n' or '?' or '!'
 	if (input_buffer[0]==0) continue;
 	char *cp = input_buffer + strlen(input_buffer) - 1;
@@ -938,6 +943,8 @@ html_escape(char c) {
    case '<': return "&lt;";
    case '>': return "&gt;";
    case '&': return "&amp;";
+   case '\"': return "&quot;";
+   case '\'': return "&#39;";
    default: 
       cp+=2; if (cp-buf>=8) cp=buf;
       *cp = c;
@@ -1010,7 +1017,7 @@ html_escape_and_emit(const char *line, void *cl) {
 
 /* web server event loop. */
 static void
-wait_for_command(char *command, int command_len) {
+wait_for_command(char *command, int command_len, const char *command_prefix) {
     while(1) {	
 	char hdrbuf[sizeof(struct cmsghdr) + sizeof(int)];
 	char rcvbuf[BUFSIZE];
@@ -1048,11 +1055,19 @@ wait_for_command(char *command, int command_len) {
 	if (rcvbuf[0]) {
 	    char session_id[SESSION_ID_MAXLEN];
 	    pid_to_session_name(getpid(), session_id, sizeof(session_id));
-	    strncpy(command, rcvbuf, command_len);
-	    command[command_len-1]=0;
 	    // send a redirect.
 	    redirect(out, session_id, "#cursor");
 	    fclose(out);
+	    // tweak given command.
+	    char *cp = command;
+	    int plen = strlen(command_prefix);
+	    while ((cp < command+command_len) &&
+		   strncmp(command_prefix, rcvbuf, plen)!=0) {
+	      *cp++ = '\b';
+	      plen--;
+	    }
+	    strncpy(cp, rcvbuf+plen, command_len-(cp-command));
+	    command[command_len-1]=0;
 	    return;
 	}
 	// ok, just a refresh.  emit the transcript.
@@ -1082,8 +1097,12 @@ wait_for_command(char *command, int command_len) {
 	     web_pick_string ? web_pick_string : "");
 	linebuffer_emit(linebuffer, html_escape_and_emit, (void*) out);
 	fprintf
-	    (out, "<a name=cursor></a><input type=text size=40 name=i>"
-	     "<p><input type=submit name=s value=Go></p>"
+	    (out, "<a name=cursor></a>"
+	     "<input type=text size=40 name=i value=\"");
+	for (const char *cp = command_prefix; *cp; cp++)
+	  fputs(html_escape(*cp), out);
+	fprintf
+	  (out, "\"><p><input type=submit name=s value=Go></p>"
 	     "</form>"
 	     "</body></html>");
 	fclose(out);
