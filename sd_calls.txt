@@ -23051,6 +23051,12 @@ call "_percolate part 3" dontshow tag percolate3
         natturnthru [allow_forced_mod inherit_yoyo endscando
                     conc_force_spots suppress_elongation_warnings]
 
+call "_percolate but part 3" dontshow tag percolate3_but
+            yoyo_is_inherited
+   conc nullsecond [mandatory_secondary_call]
+        natturnthru [allow_forced_mod inherit_yoyo endscando
+                    conc_force_spots suppress_elongation_warnings]
+
 // The real definition -- there is no guarantee
 // that centers stay centers and ends stay ends.
 // Of course, we put the version that allows replacement first.
@@ -23066,6 +23072,12 @@ call "@1percolate" c1
    seq conccirculate []
    seq conccirculate [force_half]
    seq percolate3 [inherit_yoyo]
+
+call "percolate but @m" c1
+            yoyo_is_inherited twisted_is_inherited first_two_parts_visible funny_is_inherited
+   seq circulate [or_anycall inherit_funny inherit_twisted]
+   seq circulate [inherit_funny force_half]
+   seq percolate3_but [inherit_funny inherit_yoyo]
 
 call "@T percolate" c2
             yoyo_is_inherited first_two_parts_visible funny_is_inherited
