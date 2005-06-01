@@ -1064,6 +1064,11 @@ call "split counter rotate @b" a2
             funny_is_inherited nxn_is_inherited
    splitseq ctr_rot [inherit_funny inherit_nxn repeat_n]
 
+call "box counter rotate @b" a2
+            neednumber visible_fractions distribute_repetitions
+            funny_is_inherited nxn_is_inherited
+   seq boxctrrot [inherit_funny inherit_nxn repeat_n]
+
 call "trade counter rotate" c4
    setup 2x4 2x4 rotate
       array [CR1N CR0N AL7S AL6S AL1S AL0S CR7N CR6N]
@@ -12104,7 +12109,7 @@ call "@6 mark time" c4a
          if select   [CCR1E AAL3W     0     0]
          if unselect [ CR2W  AL0E ACR0E CAL2W]
 
-call "box counter rotate" a2
+call "box counter rotate" a2 tag boxctrrot
    simple_funny
    setup 2x2 2x2
       array [CR1E AL0W AL1W CR0E]
