@@ -4048,6 +4048,12 @@ static void do_sequential_call(
    bool setup_is_elongated =
       (ss->kind == s2x2 || ss->kind == s_short6) && (ss->cmd.prior_elongation_bits & 0x3F) != 0;
 
+   // If rewinding, do the parts in reverse order.
+   if (ss->cmd.cmd_final_flags.test_heritbit(INHERITFLAG_REWIND)) {
+      ss->cmd.cmd_frac_flags ^= CMD_FRAC_REVERSE;
+      ss->cmd.cmd_frac_flags |= CMD_FRAC_FORCE_VIS;
+   }
+
    /* If a restrained concept is in place, it is waiting for the call to be pulled apart
       into its pieces.  That is about to happen.  Turn off the restraint flag.
       That will be the signal to "move" that it should act on the concept. */
