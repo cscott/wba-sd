@@ -40,7 +40,9 @@ static const char *sd_boy_svg =
 "       style=\"font-size:12;font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;fill:#%s;fill-opacity:1;stroke:none;stroke-width:1pt;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;font-family:Sans;text-anchor:middle;writing-mode:lr-tb\"\n"
 "       transform=\"rotate(%d 22.5 18)\"\n"
 "       y=\"18\"\n"
-"       x=\"22.5\" dy=\"5\">%d</text>\n"
+/* The 'dx' in the next line used to be 'dy', but one day it mysteriously
+ * needed to be flipped.  Perhaps it will need to flip back one day. */
+"       x=\"22.5\" dx=\"5\">%d</text>\n"
 "  </g>\n"
 "</svg>";//param1: rot; param2: checker color, param3: fg, param4: fg, param5: rot; param6: dancer #
 static const char *sd_girl_svg =
@@ -65,6 +67,8 @@ static const char *sd_girl_svg =
 "       style=\"font-size:12;font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;fill:#%s;fill-opacity:1;stroke:none;stroke-width:1pt;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1;font-family:Sans;text-anchor:middle;writing-mode:lr-tb\"\n"
 "       transform=\"rotate(%d 23 18)\"\n"
 "       y=\"18\"\n"
-"       x=\"23\" dy=\"5\">%d</text>\n"
+/* The 'dx' in the next line used to be 'dy', but one day it mysteriously
+ * needed to be flipped.  Perhaps it will need to flip back one day. */
+"       x=\"23\" dx=\"5\">%d</text>\n"
 "  </g>\n"
 "</svg>";//param1: rot; param2: checker color, param3: fg, param4: fg, param5: rot; param6: dancer #
