@@ -146,7 +146,7 @@ extern void hash_nonrandom_number(int number)
 
 extern void *get_mem(uint32 siz)
 {
-   void *buf = malloc(siz);
+   void *buf = calloc(siz, 1);
 
    if (!buf && siz != 0) {
       char msg [50];
