@@ -20,6 +20,7 @@
 //
 //    This is for version 36.
 
+#include <assert.h>
 #include <stdio.h>
 
 // Figure out how to do dll linkage.  If the source file that includes this
@@ -2238,10 +2239,16 @@ class attr {
 
    // Get the "limit" (that's the number of people minus one), given
    // only a setup kind.
-   static inline int klimit(setup_kind k) { return setup_attrs[k].setup_limits; }
+   static inline int klimit(setup_kind k) {
+       assert (k >= nothing && k <= s_normal_concentric);
+       return setup_attrs[k].setup_limits;
+   }
 
    // Get the limit for a given setup, reading out its setup kind.
-   static inline int slimit(const setup *s) { return setup_attrs[s->kind].setup_limits; }
+   static inline int slimit(const setup *s) {
+       assert (s->kind >= nothing && s->kind <= s_normal_concentric);
+       return setup_attrs[s->kind].setup_limits;
+   }
 };
 
 struct writechar_block_type {
