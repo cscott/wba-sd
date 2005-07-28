@@ -69,9 +69,11 @@ SDLIB_OBJS = sdmain.o sdutil.o sdbasic.o sdinit.o \
              mapcachefile.o sdpick.o sdsi.o sdmatch.o
 
 HFILES = sd.h database.h paths.h mapcachefile.h sort.h \
-             deploy.h resource.h sdprint.h
+             deploy.h resource.h sdprint.h \
+	     sdwebico.h sdui-chk.h sdui-gtk.h sdui-ico.h
 
-MAKEFILES = makefile.linux makefile.mingw makefile.mac makefile.solaris
+MAKEFILES = makefile.linux makefile.mingw makefile.mac makefile.solaris \
+	    makefile.wine
 
 SD_OBJS = sdui-gtk.o
 
@@ -143,7 +145,10 @@ clean::
 	-$(RM) *.o sd sdtty sdweb mkcalls sd_calls.dat tags sdui-ico.h libsd.a
 
 savesource::
-	tar cvf sd_source $(SDLIB_OBJS:.o=.cpp) $(SDTTY_OBJS:.o=.cpp) \
-               $(MKCALLS_OBJS:.o=.cpp) $(HFILES) \
-               sdui-ttu.cpp $(MAKEFILES) \
+	tar cvf sd_source.tar \
+	       $(patsubst %.o,%.cpp, \
+	         $(sort $(SDLIB_OBJS) $(SD_OBJS) $(SDTTY_OBJS) \
+	           $(SDWEB_OBJS) $(MKCALLS_OBJS))) \
+	       deploy.cpp deploy.rc sdui-win.cpp sdui-wincon.cpp \
+	       embed.c sd.ico $(HFILES) $(MAKEFILES) \
                sd_calls.txt db_doc.txt COPYING.txt
