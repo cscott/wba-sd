@@ -144,7 +144,8 @@ sdui-ico.h: sd.ico
 clean::
 	-$(RM) *.o sd sdtty sdweb mkcalls sd_calls.dat tags sdui-ico.h libsd.a
 
-savesource::
+savesource:: sd_source.tar
+sd_source.tar::
 	tar cvf sd_source.tar \
 	       $(patsubst %.o,%.cpp, \
 	         $(sort $(SDLIB_OBJS) $(SD_OBJS) $(SDTTY_OBJS) \
@@ -152,3 +153,6 @@ savesource::
 	       deploy.cpp deploy.rc sdui-win.cpp sdui-wincon.cpp \
 	       embed.c sd.ico $(HFILES) $(MAKEFILES) \
                sd_calls.txt db_doc.txt COPYING.txt
+savebinary:: sd_binary.tar.gz
+sd_binary.tar.gz:: mkcalls sd sdtty sd_calls.dat sd_calls.txt sd.glade
+	tar czf $@ $^
