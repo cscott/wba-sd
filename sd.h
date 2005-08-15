@@ -5038,14 +5038,9 @@ extern void erase_last_n(int n);
 
 // Write a line.  The text may or may not have a newline at the end.
 // This may or may not be after a prompt and/or echoed user input.
-// Returns the number of line advances on the transcript pad that
-// occurred because system line wraparound occurred.  A line advance
-// because there was a newline at the end of the given line does not count.
 extern void put_line(const char the_line[]);
 
 // Write a single character on the current output line.
-// Returns 1 if that character was not a newline but nevertheless
-// caused a line wraparound, zero otherwise.
 extern void put_char(int c);
 
 /* Get one character from input, no echo, no waiting for <newline>.
