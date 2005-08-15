@@ -940,10 +940,11 @@ enum command_kind {
 };
 
 
-/* In each case, an integer or enum is deposited into the global variable uims_menu_index.  Its interpretation
-   depends on which of the replies above was given.  For some of the replies, it gives the index
-   into a menu.  For "ui_start_select" it is a start_select_kind.
-   For other replies, it is one of the following constants: */
+// In each case, an integer or enum is deposited into the global variable
+// uims_menu_index.  Its interpretation depends on which of the replies above
+// was given.  For some of the replies, it gives the index into a menu.  For
+// "ui_start_select" it is a start_select_kind.  For other replies, it is one of
+// the following constants:
 
 /* BEWARE!!  This list must track the array "startup_resources" in sdui-x11.c . */
 /* BEWARE!!!!!!!!  Lots of implications for "centersp" and all that! */
@@ -974,6 +975,7 @@ enum start_select_kind {
    start_select_print_current,
    start_select_print_any,
    start_select_init_session_file,
+   start_select_change_to_new_style_filename,
    start_select_change_outfile,
    start_select_change_title,
    start_select_kind_enum_extent    // Not a start_select kind; indicates extent of the enum.
@@ -1327,7 +1329,7 @@ struct setup {
    // The following item is not actually part of the setup description, but contains
    // miscellaneous information left by "move" and similar procedures, for the
    // convenience of whatever called same.
-   resultflag_rec result_flags;           // Miscellaneous info, with names like RESULTFLAG__???.
+   resultflag_rec result_flags;     // Miscellaneous info, with names like RESULTFLAG__???.
 
    // The following three items are only used if the setup kind is "s_normal_concentric".
    // Note in particular that "outer_elongation" is thus underutilized, and that a lot
@@ -1337,6 +1339,7 @@ struct setup {
    small_setup outer;
    int concsetup_outer_elongation;
 
+   void clear_people();
    inline void clear_person(int resultplace);
    inline void suppress_roll(int place);
    inline void suppress_all_rolls();
@@ -2055,6 +2058,7 @@ enum warning_index {
    warn__unusual,
    warn_controversial,
    warn_serious_violation,
+   warn__assume_dpt,
    warn_bogus_yoyo_rims_hubs,
    warn_pg_in_2x6,
    warn_real_people_spots,
@@ -2972,6 +2976,7 @@ class configuration {
  public:
    parse_block *command_root;
    setup state;
+   bool state_is_valid;
    bool draw_pic;
    int text_line;          // How many lines of text existed after this item was written,
                            // only meaningful if "written_history_items" is >= this index.
@@ -3025,8 +3030,8 @@ class configuration {
       history_ptr = 1;
       history[1].startinfoindex = c;
       history[1].draw_pic = false;
-      whole_sequence_low_lim =
-         (startinfolist[c].into_the_middle) ? 2 : 1;
+      history[1].state_is_valid = false;
+      whole_sequence_low_lim = (startinfolist[c].into_the_middle) ? 2 : 1;
    }
    inline bool nontrivial_startinfo_specific() { return startinfoindex != 0; }
    inline startinfo *get_startinfo_specific() { return &startinfolist[startinfoindex]; }
@@ -3673,6 +3678,7 @@ enum split_command_kind {
 
 
 extern SDLIB_API int session_index;                           // in SDSI
+extern SDLIB_API bool rewrite_with_new_style_filename;        // in SDSI
 extern int random_number;                                     // in SDSI
 extern SDLIB_API char *database_filename;                     // in SDSI
 extern SDLIB_API char *new_outfile_string;                    // in SDSI
@@ -3903,12 +3909,12 @@ extern SDLIB_API char header_comment[MAX_TEXT_LINE_LENGTH];         /* in SDUTIL
 extern SDLIB_API bool creating_new_session;                         /* in SDUTIL */
 extern SDLIB_API int sequence_number;                               /* in SDUTIL */
 extern SDLIB_API int starting_sequence_number;                      /* in SDUTIL */
-extern SDLIB_API Cstring old_filename_strings[];                    /* in SDUTIL */
-extern SDLIB_API Cstring new_filename_strings[];                    /* in SDUTIL */
-extern SDLIB_API Cstring *filename_strings;                         /* in SDUTIL */
-extern SDLIB_API Cstring concept_key_table[];                       /* in SDUTIL */
+extern SDLIB_API const Cstring old_filename_strings[];              /* in SDUTIL */
+extern SDLIB_API const Cstring new_filename_strings[];              /* in SDUTIL */
+extern SDLIB_API const Cstring *filename_strings;                   /* in SDUTIL */
+extern SDLIB_API const Cstring concept_key_table[];                 /* in SDUTIL */
 
-extern SDLIB_API concept_table_item concept_table[];                /* in SDCONCPT */
+extern SDLIB_API const concept_table_item concept_table[];          /* in SDCONCPT */
 extern uint32 global_tbonetest;                                     /* in SDCONCPT */
 extern uint32 global_livemask;                                      /* in SDCONCPT */
 extern uint32 global_selectmask;                                    /* in SDCONCPT */
@@ -4740,8 +4746,6 @@ inline uint32 or_all_people(const setup *ss)
    return result;
 }
 
-
-extern void clear_people(setup *z);
 
 inline void setup::clear_person(int place)
 {
