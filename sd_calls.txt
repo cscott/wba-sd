@@ -18314,7 +18314,7 @@ call "step and flip" c1
    setup 1x3 1x2 rotate qualifier wave_only restriction unusual alwaysfail
       array [CR0E ZM0W AL0E]
 
-call "step and squeeze" c1
+call "step and squeeze" c2 // according to Vic Ceder, at least.
    setup 1x4 2x3 rotate
       array [CR1E ZM5W AL4E ZM0W]
 
