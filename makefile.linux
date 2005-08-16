@@ -117,7 +117,7 @@ sd_calls.dat: sd_calls.txt mkcalls
 
 sdui-web.o: sdui-web.cpp sdwebico.h sdui-chk.h
 	$(CC) $(CFLAGS) `pkg-config --cflags librsvg-2.0` -c $<
-sdui-gtk.o: sdui-gtk.cpp sdui-gtk.h sdui-ico.h sdui-chk.h
+sdui-gtk.o: sdui-gtk.cpp sdui-gtk.h sdui-ico.h sdui-chk.h sdglade.h
 	$(CC) $(CFLAGS) `pkg-config --cflags libglade-2.0 libgnomeui-2.0 librsvg-2.0` -c $<
 sdui-ttu.o: sdui-ttu.cpp
 	$(CC) $(CFLAGS) $(TTY_FLAGS) -c $<
@@ -138,6 +138,8 @@ embed: embed.c
 	$(CC) $(CFLAGS) -o $@ $^
 sdwebico.h: embed sd.ico
 	./embed sdweb_ico < sd.ico > $@
+sdglade.h: embed sd.glade
+	./embed sdglade_xml < sd.glade > $@
 sdui-ico.h: sd.ico
 	gdk-pixbuf-csource --raw --name=sdico_inline $< > $@
 

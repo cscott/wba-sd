@@ -5,7 +5,7 @@ int main(int argc, char**argv) {
     int i;
 
     fprintf(out, "/* AUTOMATICALLY GENERATED.  DO NOT EDIT. */\n");
-    fprintf(out, "unsigned char %s[] = {\n", argc>1 ? argv[1] : "file");
+    fprintf(out, "const unsigned char %s[] = {\n", argc>1 ? argv[1] : "file");
     for (i=0; !feof(in); i++) {
 	unsigned char c;
 	if (0==fread(&c, sizeof(c), 1, in)) continue;

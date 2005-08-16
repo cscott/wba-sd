@@ -619,7 +619,7 @@ serve_one(int session_mgr_fd, int socket) {
     static struct {
 	const char *filename;
 	const char *type;
-	void *content;
+	const void *content;
 	size_t size;
     } static_content[] = {
 	{ "/favicon.ico", "image/x-icon", sdweb_ico, sizeof(sdweb_ico) },

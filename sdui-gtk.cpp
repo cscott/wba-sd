@@ -58,6 +58,9 @@ static popup_return do_outfile_popup_with_default(gchar *dest, gsize size,
 }
 
 // GLADE interface definitions
+#ifndef GLADE_DYNAMIC
+# include "sdglade.h"
+#endif
 static GladeXML *sd_xml;
 static GtkWidget *window_startup, *window_main, *window_font, *window_text;
 static GtkWidget *window_outfile;
@@ -597,8 +600,12 @@ int main(int argc, char **argv) {
 		      LIBGNOMEUI_PARAM_CRASH_DIALOG, FALSE,
 		      GNOME_PARAM_NONE);
    // initialize the interface.
-
-   sd_xml = glade_xml_new("sd.glade", NULL, NULL);
+#ifdef GLADE_DYNAMIC
+   sd_xml = glade_xml_new("sd.glade", NULL, NULL); // must be in current dir
+#else
+   sd_xml = glade_xml_new_from_buffer
+       ((const char *) sdglade_xml, sizeof(sdglade_xml), NULL, NULL);
+#endif
    window_startup = SDG("dialog_startup");
    window_main = SDG("app_main");
    window_text = SDG("dialog_text");
