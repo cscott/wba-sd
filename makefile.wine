@@ -1,5 +1,9 @@
 # Makefile for Sd/Sdtty for MingW (GCC on Windows).
 
+# These are the debian packages you will require to build these sources:
+# (Package names on other platforms may vary.)
+#   libwine-dev
+
 # This gives the compiler name and any switches that it needs to make
 # it operate the way we want (ANSI language, standards conformance,
 # target hardware, etc.)
@@ -17,7 +21,7 @@ DEFS = -Wall -Wno-switch -Wno-uninitialized -Wno-char-subscripts
 # this may compromise the ability to debug the program.  In this case, you may
 # need to choose different options, typically "-g", for debugging.
 # Consult your system, compiler, and debugger vendor for further information.
-CDEBUGFLAGS = -O4
+CDEBUGFLAGS = -g #-O4
 
 CFLAGS =$(CDEBUGFLAGS) $(DEFS)
 

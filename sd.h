@@ -613,7 +613,8 @@ class SDLIB_API conzept {
    // This does the translation, writes over the "menu_name" fields,
    // and places a const pointer to the thing in "concept_descriptor_table".
    // This is in sdinit.
-   static void conzept::translate_concept_names();
+   // (gcc doesn't seem to like the redundant qualification here)
+   static void /*conzept::*/translate_concept_names();
 };
 
 // BEWARE!!  This list must track the array "selector_list" in sdtables.cpp
@@ -3801,6 +3802,8 @@ class iobase {
    virtual void bad_argument(Cstring s1, Cstring s2, Cstring s3) = 0;
    virtual void final_initialize() = 0;
    virtual bool init_step(init_callback_state s, int n) = 0;
+   /* virtual destructor */
+   virtual ~ iobase() { /* do nothing special */ }
 };
 
 class iofull : public iobase {

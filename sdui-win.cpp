@@ -2127,7 +2127,7 @@ static BOOL Startup_OnInitDialog(HWND hwnd, HWND hwndFocus, LPARAM lParam)
    return TRUE;
 }
 
-struct { int id; const char *message; } dialog_help_list[] = {
+static struct { int id; const char *message; } dialog_help_list[] = {
    // These two must be first, so that the level-vs-session stuff
    // will come out right.
    {IDC_START_LIST,

@@ -1,5 +1,9 @@
 # Makefile for Sd/Sdtty for Linux.  Intended to be used with GCC, of course.
 
+# These are the debian packages you will require to build these sources:
+# (Package names on other platforms may vary.)
+# libgtk2.0-dev libgnomeui-dev libglade2-dev librsvg2-dev
+
 # This gives the compiler name and any switches that it needs to make
 # it operate the way we want (ANSI language, standards conformance,
 # target hardware, etc.)
@@ -96,10 +100,10 @@ libsd.a: $(SDLIB_OBJS)
 	$(AR) crs $@ $^
 
 sdtty: libsd.a $(SDTTY_OBJS)
-	$(CC) $(CFLAGS) -o $@ $(SDTTY_LINK_OBJS) $(TTY_LIBS)
+	$(CC) $(CFLAGS) -rdynamic -o $@ $(SDTTY_LINK_OBJS) $(TTY_LIBS)
 
 sd: libsd.a $(SD_OBJS)
-	$(CC) -o $@ $(SD_OBJS) -L. -lsd `pkg-config --libs libglade-2.0 libgnomeui-2.0 librsvg-2.0`
+	$(CC) -o $@ $(SD_OBJS) -rdynamic -L. -lsd `pkg-config --libs libglade-2.0 libgnomeui-2.0 librsvg-2.0`
 
 sdweb: libsd.a $(SDWEB_OBJS)
 	$(CC) $(CFLAGS) -o $@ $(SDWEB_LINK_OBJS) `pkg-config --libs librsvg-2.0`

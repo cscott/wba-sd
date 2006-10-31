@@ -780,7 +780,7 @@ public:
 	    strcpy(hostname, h->h_name);
 	this->hostname = strdup(hostname);
     }
-    bool ioweb::init_step(init_callback_state s, int n);
+    bool init_step(init_callback_state s, int n);
 };
 // accessor
 static char *web_get_hostname() { return ((ioweb *)gg)->hostname; }
