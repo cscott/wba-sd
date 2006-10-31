@@ -210,8 +210,15 @@ void iofull::process_command_line(int *argcp, char ***argvp)
       }
       else if (strcmp(argv[argno], "-maximize") == 0)
          {}
-      else if (strcmp(argv[argno], "-window_size") == 0 && argno+1 < (*argcp)) {
+      else if (strcmp(argv[argno], "-window_size") == 0 && argno+1 < (*argcp))
          goto remove_two;
+      else if (strcmp(argv[argno], "-session") == 0 && argno+1 < (*argcp)) {
+         argno += 2;
+         continue;
+      }
+      else if (strcmp(argv[argno], "-resolve_test") == 0 && argno+1 < (*argcp)) {
+         argno += 2;
+         continue;
       }
       else {
          argno++;
@@ -255,8 +262,8 @@ static bool really_open_session()
 	 for (int i=strlen(line)-1; i>=0; i--)
 	    if (line[i]=='\r' || line[i]=='\n') line[i]=0;
 	    else break;
-	 put_line(line);
-	 put_line("\n");
+         put_line(line);
+         put_line("\n");
       }
 
       put_line("Enter the number of the desired session\n");
@@ -283,9 +290,9 @@ static bool really_open_session()
       int session_info = process_session_info(&session_error_msg);
 
       if (session_info & 2) {
-	 ensure_ttu_initialize();
-	 put_line(session_error_msg);
-	 put_line("\n");
+         ensure_ttu_initialize();
+         put_line(session_error_msg);
+         put_line("\n");
       }
 
       if (session_info & 1) {
@@ -315,6 +322,7 @@ static int db_tick_cur;   /* goes from 0 to db_tick_max */
 #define TICK_STEPS 52
 static int tick_displayed;   /* goes from 0 to TICK_STEPS */
 
+static bool ttu_is_initialized = false;
 
 bool iofull::init_step(init_callback_state s, int n)
 {
@@ -322,10 +330,14 @@ bool iofull::init_step(init_callback_state s, int n)
    // in the boolean return value.  The others don't care.
 
    char line[MAX_FILENAME_LENGTH];
+   int size;
 
    switch (s) {
 
    case get_session_info:
+      current_text_line = 0;
+      if (!ttu_is_initialized) ttu_initialize();
+      ttu_is_initialized = true;
       return really_open_session();
 
    case final_level_query:
@@ -340,14 +352,13 @@ bool iofull::init_step(init_callback_state s, int n)
       put_line("Enter the level: ");
 
       get_string(line, MAX_FILENAME_LENGTH);
-      {
-         int size = strlen(line);
 
-         while (size > 0 && (line[size-1] == '\n' || line[size-1] == '\r'))
-            line[--size] = '\000';
+      size = strlen(line);
 
-         parse_level(line);
-      }
+      while (size > 0 && (line[size-1] == '\n' || line[size-1] == '\r'))
+         line[--size] = '\000';
+
+      parse_level(line);
 
       strncat(outfile_string, filename_strings[calling_level], MAX_FILENAME_LENGTH);
       break;
@@ -383,7 +394,7 @@ bool iofull::init_step(init_callback_state s, int n)
             tick_displayed++;
          }
       }
-      fflush(stdout);
+
       break;
    case tick_end:
       put_line("done\n");
@@ -1347,6 +1358,6 @@ void iofull::serious_error_print(Cstring s1)
 void iofull::terminate(int code)
 {
    if (journal_file) (void) fclose(journal_file);
-   ttu_terminate();
+   if (ttu_is_initialized) ttu_terminate();
    exit(code);
 }

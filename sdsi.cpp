@@ -148,6 +148,11 @@ extern void hash_nonrandom_number(int number)
 
 extern void *get_mem(uint32 siz)
 {
+   // Using "calloc" instead of "malloc" clears the memory.
+   // We claim this isn't necessary; our code, being correctly written,
+   // is insensitive to the initial contents of allocated memory.
+   // But someone is a wuss, and thinks we need this.
+   // (That someone is me. -- CSA)
    void *buf = calloc(siz, 1);
 
    if (!buf && siz != 0) {
