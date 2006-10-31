@@ -3457,7 +3457,8 @@ enum {
    CMD_MISC3__RESTRAIN_CRAZINESS   = 0x00000004UL,
    CMD_MISC3__RESTRAIN_MODIFIERS   = 0x00000008UL,
    CMD_MISC3__META_NOCMD           = 0x00000010UL,
-   CMD_MISC3__NO_CHECK_LEVEL       = 0x00000020UL
+   CMD_MISC3__NO_CHECK_LEVEL       = 0x00000020UL,
+   CMD_MISC3__DOING_YOUR_PART      = 0x00000040UL     // Some kind of "DYP" has happened, setups may be bizarre.
 };
 
 
@@ -3725,6 +3726,7 @@ enum selective_key {
    // Warning!!!!  Order is important!  See all the stupid ways these are used
    // in sdconc.cpp.
    selective_key_dyp,
+   selective_key_dyp_for_mystic,
    selective_key_own,
    selective_key_plain_no_live_subsets,  // there is an
                                          // "indicator < selective_key_plain_no_live_subsets"
