@@ -1,6 +1,6 @@
 // SD -- square dance caller's helper.
 //
-//    Copyright (C) 1990-2005  William B. Ackerman.
+//    Copyright (C) 1990-2006  William B. Ackerman.
 //
 //    This file is part of "Sd".
 //
@@ -29,7 +29,7 @@
 // database format version.
 
 #define DATABASE_MAGIC_NUM 21316
-#define DATABASE_FORMAT_VERSION 240
+#define DATABASE_FORMAT_VERSION 243
 
 // BEWARE!!  These must track the items in "tagtabinit" in mkcalls.cpp .
 enum base_call_index {
@@ -211,6 +211,7 @@ enum {
    CFLAG2_YIELD_IF_AMBIGUOUS        = 0x04000000UL,
    CFLAG2_DO_EXCHANGE_COMPRESS      = 0x08000000UL,
    CFLAG2_IF_MOVE_CANT_ROLL         = 0x10000000UL,
+   CFLAG2_FRACTIONAL_NUMBERS        = 0x20000000UL
 };
 
 // Beware!!  This list must track the table "matrixcallflagtab" in mkcalls.cpp .
@@ -271,7 +272,19 @@ enum dance_level {
    l_c4,
    l_c4x,
    l_dontshow,
-   l_nonexistent_concept   // We can't have more than 16 levels.
+   l_nonexistent_concept,   // We can't have more than 16 levels.
+
+   // Tags for some of the above.
+
+   dixie_grand_level = l_plus,
+   extend_34_level = l_plus,
+   zig_zag_level = l_a2,
+   beau_belle_level = l_a2,
+   cross_by_level = l_c1,
+   intlk_triangle_level = l_c2,
+   general_magic_level = l_c3,
+   phantom_tandem_level = l_c4a,
+   Z_CLW_level = l_c4a
 };
 
 /* These are the states that people can be in, and the "ending setups" that can appear
@@ -317,6 +330,8 @@ enum setup_kind {
    sd2x5,
    s_ntrgl6cw,
    s_ntrgl6ccw,
+   s_nftrgl6cw,
+   s_nftrgl6ccw,
    s_ntrglcw,
    s_ntrglccw,
    s_nptrglcw,
@@ -350,8 +365,9 @@ enum setup_kind {
    s4dmd,
    s3ptpd,
    s4ptpd,
-   shsqtag,
-   shqtag,
+   s_hsqtag,
+   s_dmdlndmd,
+   s_hqtag,
    s_wingedstar,
    s_wingedstar12,
    s_wingedstar16,
@@ -807,6 +823,7 @@ enum calldef_schema {
    schema_1313_concentric,       // Not for public use!
    schema_1221_concentric,
    schema_concentric_diamond_line,
+   schema_concentric_lines_z,
    schema_concentric_diamonds,
    schema_cross_concentric_diamonds,
    schema_concentric_zs,

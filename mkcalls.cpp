@@ -1,6 +1,6 @@
 // SD -- square dance caller's helper.
 //
-//    Copyright (C) 1990-2004  William B. Ackerman.
+//    Copyright (C) 1990-2005  William B. Ackerman.
 //
 //    This file is part of "Sd".
 //
@@ -675,6 +675,8 @@ char *estab[] = {
    "???",
    "???",
    "???",
+   "???",
+   "???",
    "wqtag",
    "deep2x1dmd",
    "whrglass",
@@ -701,6 +703,7 @@ char *estab[] = {
    "3ptpd",
    "4ptpd",
    "hsqtag",
+   "dmdlndmd",
    "hqtag",
    "wingedstar",
    "wingedstar12",
@@ -793,6 +796,7 @@ char *schematab[] = {
    "???",
    "1221_conc",
    "conc_diamond_line",
+   "conc_lines_z",
    "conc_diamonds",
    "crossconc_diamonds",
    "conc_zs",
@@ -1097,6 +1101,7 @@ char *flagtab1[] = {
    "yield_if_ambiguous",
    "do_exchange_compress",
    "anyone_who_moves_cant_roll",
+   "fractional_numbers",
    ""};
 
 /* The next three tables are all in step with each other, and with the "heritable" flags. */
