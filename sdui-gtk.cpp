@@ -2392,6 +2392,10 @@ void iofull::add_new_line(const char the_line[], uint32 drawing_picture)
 }
 
 
+// We don't do anything here.
+void iofull::no_erase_before_n(int n)
+{}
+
 
 void iofull::reduce_line_count(int n)
 {
