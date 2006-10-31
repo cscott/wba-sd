@@ -1144,6 +1144,67 @@ extern void touch_or_rear_back(
       scopy->kind = zptr->outer_kind;
    }
 
+   // Check for doing this under the "mystic" concept.
+   if ((scopy->cmd.cmd_misc2_flags & CMD_MISC2__CENTRAL_MYSTIC) && touchflags == CFLAG1_STEP_TO_WAVE) {
+      if (scopy->kind == s1x8 && livemask == 0xFFFF && directions == 0xAA00) {
+         // We stepped to a tidal wave.
+         if (scopy->cmd.cmd_misc2_flags & CMD_MISC2__INVERT_MYSTIC) {
+            scopy->swap_people(0, 1);
+            scopy->swap_people(4, 5);
+         }
+         else {
+            scopy->swap_people(2, 3);
+            scopy->swap_people(6, 7);
+         }
+      }
+      else if (scopy->kind == s2x4 && livemask == 0xFFFF && directions == 0x7DD7) {
+         // We stepped to columns.
+         if (scopy->cmd.cmd_misc2_flags & CMD_MISC2__INVERT_MYSTIC) {
+            scopy->swap_people(0, 7);
+            scopy->swap_people(3, 4);
+         }
+         else {
+            scopy->swap_people(2, 5);
+            scopy->swap_people(1, 6);
+         }
+      }
+      else if (scopy->kind == s_bone && livemask == 0xFFFF && directions == 0xAD07) {
+         // We stepped to a bone.
+         if (scopy->cmd.cmd_misc2_flags & CMD_MISC2__INVERT_MYSTIC) {
+            scopy->swap_people(0, 5);
+            scopy->swap_people(1, 4);
+         }
+         else {
+            scopy->swap_people(2, 3);
+            scopy->swap_people(6, 7);
+         }
+      }
+      else if (scopy->kind == s_rigger && livemask == 0xFFFF && directions == 0xAD07) {
+         // We stepped to a rigger from a bone.
+         if (scopy->cmd.cmd_misc2_flags & CMD_MISC2__INVERT_MYSTIC) {
+            scopy->swap_people(2, 3);
+            scopy->swap_people(6, 7);
+         }
+         else {
+            scopy->swap_people(0, 5);
+            scopy->swap_people(1, 4);
+         }
+      }
+      else if (scopy->kind == s_rigger && livemask == 0xFFFF && directions == 0x7DD7) {
+         // We stepped to a rigger from a suitable qtag.
+         if (scopy->cmd.cmd_misc2_flags & CMD_MISC2__INVERT_MYSTIC) {
+            scopy->swap_people(2, 3);
+            scopy->swap_people(6, 7);
+         }
+         else {
+            scopy->swap_people(0, 1);
+            scopy->swap_people(4, 5);
+         }
+      }
+
+      update_id_bits(scopy);    // Centers and ends are meaningful now.
+   }
+
    // Assumptions are no longer valid, except for a few special cases.
    scopy->cmd.cmd_assume.assumption = new_assume;
    canonicalize_rotation(scopy);
@@ -3344,12 +3405,7 @@ extern callarray *assoc(begin_kind key, setup *ss, callarray *spec) THROW_DECL
             require_explicit = true;
          }
          else {
-            u = 0;
-
-            for (plaini=0; plaini<=attr::slimit(ss); plaini++)
-               u |= ss->people[plaini].id1;
-
-            if ((u & 011) == 011) {
+            if ((or_all_people(ss) & 011) == 011) {
                // They are T-boned.  The "QUALBIT__NTBONE" bit says to reject.
                if ((p->qualifierstuff & QUALBIT__NTBONE) != 0) continue;
             }
@@ -4060,6 +4116,16 @@ extern callarray *assoc(begin_kind key, setup *ss, callarray *spec) THROW_DECL
             goto good;
 
          goto check_tt;
+
+      case cr_levelplus:
+      case cr_levela1:
+      case cr_levela2:
+      case cr_levelc1:
+      case cr_levelc2:
+      case cr_levelc3:
+      case cr_levelc4:
+         goto check_tt;
+
       default:
          break;
       }

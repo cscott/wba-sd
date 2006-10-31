@@ -44,7 +44,7 @@
 //    string is also required by paragraphs 2(a) and 2(c) of the GNU
 //    General Public License if you distribute the file.
 
-version "36.8"
+version "36.81"
 
 call "nothing" mainstream tag nullcall
             dont_use_in_resolve
@@ -195,6 +195,24 @@ call "chase" c3 tag chase_the_half_tag
    setup 2x4 2x4 rotate
       array [C0E C1E C2E C3E 0 0 0 0]
 
+// We allow both spellings -- "chase your leader" and "chase the tag your leader".
+call "chase the tag" c3
+            left_means_mirror split_large_setups base_tag_call_2
+   setup 2x2 2x2
+      array [C1S C2S 0 0]
+            alternate_definition [single] c4
+   setup 2x1 1x2 rotate
+      array [0 CR1E]
+            alternate_definition [singlefile] c4
+   setup 4x1 2x2
+      array [0 0 C2S C3S]
+            alternate_definition [3x3] c4
+   setup 2x3 2x3 rotate
+      array [C0E C1E C2E 0 0 0]
+            alternate_definition [4x4] c4
+   setup 2x4 2x4 rotate
+      array [C0E C1E C2E C3E 0 0 0 0]
+
 call "double pass" c3a
             left_means_mirror base_tag_call_3
    setup 4x1 2x2
@@ -329,7 +347,7 @@ call "cross loop and tag" c3
    setup 5x2 2x5 rotate restriction peelable_box
       array [C5S C6S C7S C8S C9S A4N A3N A2N A1N A0N]
 
-call "invert" c2 tag invert_the_tag_half
+call "invert" c3x tag invert_the_tag_half
             base_tag_call_3
    setup 4x2 2x4 rotate restriction forbidden peelable_box
       array [ZM6W ZM1W AL0E AM7E CM4E CR3E ZM2W ZM5W]
@@ -7295,7 +7313,8 @@ call "@w the line" mainstream
    seq extend_n [inherit_single inherit_nxn inherit_mxn insert_number 4]
 
 // And the following 2 calls work with "tag the star", "snap the tag",
-// "circle the tag", and "loop and tag".
+// "circle the tag", "loop and tag", and "chase the tag".  Note that "chase" and "chase the tag"
+// both exist.  So you can say either "chase your leader" or "chase the tag your leader".
 
 call "@x @a" c3      // How's this for a call name?
             neednumber left_means_mirror single_is_inherited singlefile_is_inherited
@@ -8273,11 +8292,15 @@ call "cycle and wheel" a1 tag cyclewheel
          if cycle_and_wheel_1 [CR1S CR0S 0    CR2N]
          if cycle_and_wheel_2 [0    AL3N AL3S AL2S]
          if always            [0    AL0N AL0S AL1S]
-   setup 2x2 1x4 restriction not_tboned
+   setup 2x2 1x4 qualifier levelc1 restriction not_tboned
       preds "Can't do this with phantoms or T-boned people."
          if 2x2_miniwave [CR2S AL0S AL3S CR1S]
          if 2x2_couple   [0    0    ZM0N CR1S]
          if always       [CR2S 0    0    CR1S]
+   // Below C1, we allow only the facing-couples version.  And only at A2.
+   // And it's fairly useless anyway without the concentric concept, which is C1.
+   setup 2x2 1x4 qualifier ntbone in in_or_out restriction forbidden levela2
+         array [0    0    ZM0N CR1S]
             alternate_definition [straight] c4
    setup 2x4 2x4 rotate
       preds "Can't do this call."
@@ -11170,7 +11193,7 @@ call "spin chain the line" c3a
    seq ctrs_cast_3_4_with_warn []
 
 call "_spin chain the line part 2" dontshow tag spinchainpart2
-   checkpoint slip [] cast_off_n4 [conc_force_otherway suppress_elongation_warnings insert_number 3]
+   checkpoint_mystic_ok slip [] cast_off_n4 [conc_force_otherway suppress_elongation_warnings insert_number 3]
 
 call "swing chain the line" c4
             step_to_wave yoyo_is_inherited can_be_fan left_means_touch_or_check first_part_visible
@@ -12033,14 +12056,23 @@ call "@6 chain to the left" mainstream
          if person_select_plus4  [0 0 0 0 0 L1W    0 0 0 0 0 0 0 0 0 0]
          if unselect             [0 0 0 0 0   0 ZM6N 0 0 0 0 0 0 0 0 0]
 
-call "who's on first, @6 go" c4
-            dont_use_in_resolve
+call "who's on @u" c4 tag whos_on_nth
+            dont_use_in_resolve neednumber
    setup 4x4 4x4
       preds "Must give a couple number."
-         if select               [0 0 0 0 0 C14S A13S 0 0 0 0 0 0 0 0 0]
-         if person_select_plus12 [0 0 0 0 0 A2W Z5N 0 0 0 0 0 0 0 0 0]
-         if person_select_plus4  [0 0 0 0 0 Z6N C9E 0 0 0 0 0 0 0 0 0]
-         if person_select_plus8  [0 0 0 0 0 A2W C9E 0 0 0 0 0 0 0 0 0]
+         if base_is_here         [0 0 0 0 0 AL14S CR13S 0 0 0 0 0 0 0 0 0]
+         if base_is_right        [0 0 0 0 0 AL2W  ZM5N  0 0 0 0 0 0 0 0 0]
+         if base_is_across       [0 0 0 0 0 AL2W  CR9E  0 0 0 0 0 0 0 0 0]
+         if base_is_left         [0 0 0 0 0 ZM6N  CR9E  0 0 0 0 0 0 0 0 0]
+   setup alamo alamo
+      preds "Must give a couple number."
+         if base_is_here         [0 0 0 0 AL1S CR0S 0 0]
+         if base_is_right        [0 0 0 0 AL3W ZM4N 0 0]
+         if base_is_across       [0 0 0 0 AL3W CR6E 0 0]
+         if base_is_left         [0 0 0 0 ZM5N CR6E 0 0]
+
+call "who's at home" c4
+   seq whos_on_nth [insert_number 4]
 
 call "ladies chain 3/4" mainstream
             sequence_starter

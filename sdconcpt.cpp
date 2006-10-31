@@ -131,10 +131,8 @@ static void do_concept_tandem(
             orig_bits ^= CONCPROP__NEEDK_2X6 ^ CONCPROP__NEEDK_DEEPXWV;
             break;
          case CONCPROP__NEEDK_1X16:
-            orig_bits ^= CONCPROP__NEEDK_2X8 ^ CONCPROP__NEEDK_1X16;
-            break;
          case CONCPROP__NEEDK_2X8:
-            orig_bits ^= CONCPROP__NEEDK_1X16 ^ CONCPROP__NEEDK_2X8;
+            orig_bits ^= CONCPROP__NEEDK_2X8 ^ CONCPROP__NEEDK_1X16;
             break;
          }
       }
@@ -252,7 +250,7 @@ static void do_c1_phantom_move(
 
          if (!mxnflags) {
             what_we_need = next_parseptr->concept->arg2;
-            if (what_we_need == 0) what_we_need = CONCPROP__NEEDK_4X4;
+            if (what_we_need == 0) what_we_need = ~0UL;
          }
 
          break;
@@ -263,15 +261,16 @@ static void do_c1_phantom_move(
       if (next_parseptr->next && next_parseptr->next->concept->kind == concept_tandem_in_setup) {
          // No matrix expand.
       }
-      else {
-         if (what_we_need != 0)
+      else if (!(ss->cmd.cmd_misc_flags & CMD_MISC__NO_EXPAND_MATRIX)) {
+         if (what_we_need == ~0UL) {
+            // Expand for "phantom tandem" etc.  First priority is a 4x4.
+            do_matrix_expansion(ss, CONCPROP__NEEDK_4X4, true);
+            if (ss->kind != s4x4) do_matrix_expansion(ss, CONCPROP__NEEDK_2X8, true);
+            if (ss->kind != s2x8) do_matrix_expansion(ss, CONCPROP__NEEDK_1X16, true);
+         }
+         else if (what_we_need != 0) {
             do_matrix_expansion(ss, what_we_need, true);
-         // We used to do:
-         //    ss->cmd.cmd_misc_flags |= CMD_MISC__NO_EXPAND_MATRIX;
-         // Which prevented any further matrix expansion (e.g. the 2x4-4x4 that
-         // happens on split phantom lines) from happening after any "phantom tandem"
-         // type of call.  We no longer do that, which means that things like
-         // "phantom as couples split phantom lines square the bases" are now legal.
+         }
       }
 
       ss->cmd.cmd_misc_flags |= CMD_MISC__PHANTOMS;
@@ -5346,6 +5345,8 @@ static void so_and_so_only_move(
    parse_block *parseptr,
    setup *result) THROW_DECL
 {
+   ss->cmd.cmd_misc3_flags |= CMD_MISC3__DOING_YOUR_PART;
+
    selective_move(ss, parseptr, (selective_key) parseptr->concept->arg1,
                   parseptr->concept->arg2, parseptr->concept->arg3,
                   0, parseptr->options.who, false, result);
@@ -7237,25 +7238,6 @@ static void do_concept_concentric(
    setup *result) THROW_DECL
 {
    calldef_schema schema = (calldef_schema) parseptr->concept->arg1;
-
-   if ((schema == schema_3x3k_concentric || schema == schema_3x3k_cross_concentric) &&
-       !(ss->cmd.cmd_misc_flags & CMD_MISC__NO_EXPAND_MATRIX)) {
-      if (ss->kind == s2x4)
-         do_matrix_expansion(ss, CONCPROP__NEEDK_2X6, false);
-      else if (ss->kind == s1x8 || ss->kind == s1x10)
-         do_matrix_expansion(ss, CONCPROP__NEEDK_1X12, false);
-
-      ss->cmd.cmd_misc_flags |= CMD_MISC__NO_EXPAND_MATRIX;
-   }
-   else if ((schema == schema_4x4k_concentric || schema == schema_4x4k_cross_concentric) &&
-            !(ss->cmd.cmd_misc_flags & CMD_MISC__NO_EXPAND_MATRIX)) {
-      if (ss->kind == s2x4 || ss->kind == s2x6)
-         do_matrix_expansion(ss, CONCPROP__NEEDK_2X8, false);
-      else if (ss->kind == s1x8 || ss->kind == s1x10 || ss->kind == s1x12 || ss->kind == s1x14)
-         do_matrix_expansion(ss, CONCPROP__NEEDK_1X16, false);
-
-      ss->cmd.cmd_misc_flags |= CMD_MISC__NO_EXPAND_MATRIX;
-   }
 
    if ((ss->cmd.cmd_misc3_flags & CMD_MISC3__META_NOCMD) &&
        (schema_attrs[schema].attrs & SCA_CROSS))

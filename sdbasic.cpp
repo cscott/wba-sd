@@ -3184,15 +3184,15 @@ static int divide_the_setup(
       }
       break;
    case s1x8:
+      if (must_do_mystic)
+         goto do_mystically;
+
       division_code = MAPCODE(s1x4,2,MPKIND__SPLIT,0);
 
       /* See if the call has a 1x4, 4x1, 1x2, 2x1, or 1x1 definition, in which case split it and do each part. */
       if (     assoc(b_1x4, ss, calldeflist) || assoc(b_4x1, ss, calldeflist)) {
          goto divide_us_no_recompute;
       }
-
-      if (must_do_mystic)
-         goto do_mystically;
 
       if (     assoc(b_1x2, ss, calldeflist) || assoc(b_2x1, ss, calldeflist) ||
                assoc(b_1x1, ss, calldeflist)) {
@@ -3213,48 +3213,51 @@ static int divide_the_setup(
          return 2;                        /* And try again. */
       }
 
-      /* We might be doing some kind of "own the so-and-so" operation in which people who are ends of
-         each wave in a 1x8 want to think they are points of diamonds instead.  This could happen,
-         for example, with point-to-point diamonds if we say "own the <points>, flip the diamond by
-         flip the diamond".  Yes, it's stupid.  Now normalize_setup turned the centerless diamonds
-         into a 1x8 (it needs to do that in order for "own the <points>, trade by flip the diamond"
-         to work.  We must turn that 1x8 back into diamonds.  The "own the so-and-so" concept turns
-         on CMD_MISC__PHANTOMS.  If this flag weren't on, we would have no business saying "I see
-         phantoms in the center 2 spots of my wave, I'm allowed to think of this as a diamond."
-         The same thing is done below for 2x4's and 1x4's. */
+      // We might be doing some kind of "own the so-and-so" operation in which people who are ends of
+      // each wave in a 1x8 want to think they are points of diamonds instead.  This could happen,
+      // for example, with point-to-point diamonds if we say "own the <points>, flip the diamond by
+      // flip the diamond".  Yes, it's stupid.  Now normalize_setup turned the centerless diamonds
+      // into a 1x8 (it needs to do that in order for "own the <points>, trade by flip the diamond"
+      // to work.  We must turn that 1x8 back into diamonds.  The "own the so-and-so" concept turns
+      // on CMD_MISC__PHANTOMS.  If this flag weren't on, we would have no business saying "I see
+      // phantoms in the center 2 spots of my wave, I'm allowed to think of this as a diamond."
+      // The same thing is done below for 2x4's and 1x4's.
+      // We only do this if some kind of "do your part" operation is going on:  own the <anyone>,
+      // mystic, etc.
 
       if ((ss->cmd.cmd_misc_flags & CMD_MISC__PHANTOMS) &&
-          (ss->people[1].id1 | ss->people[3].id1 |
-           ss->people[5].id1 | ss->people[7].id1) == 0) {
-         setup sstest = *ss;
-         sstest.kind = s_ptpd;
+          (ss->cmd.cmd_misc3_flags & CMD_MISC3__DOING_YOUR_PART)) {
+         if ((ss->people[1].id1 | ss->people[3].id1 |
+              ss->people[5].id1 | ss->people[7].id1) == 0) {
+            setup sstest = *ss;
+            sstest.kind = s_ptpd;
 
-         if ((!(newtb & 010) ||
-              assoc(b_ptpd, &sstest, calldeflist) ||
-              assoc(b_dmd, &sstest, calldeflist)) &&
-             (!(newtb & 001) ||
-              assoc(b_pptpd, &sstest, calldeflist) ||
-              assoc(b_pmd, &sstest, calldeflist))) {
-            *ss = sstest;
-            return 2;
+            if ((!(newtb & 010) ||
+                 assoc(b_ptpd, &sstest, calldeflist) ||
+                 assoc(b_dmd, &sstest, calldeflist)) &&
+                (!(newtb & 001) ||
+                 assoc(b_pptpd, &sstest, calldeflist) ||
+                 assoc(b_pmd, &sstest, calldeflist))) {
+               *ss = sstest;
+               return 2;
+            }
          }
-      }
-      else if ((ss->cmd.cmd_misc_flags & CMD_MISC__PHANTOMS) &&
-               (ss->people[0].id1 | ss->people[1].id1 |
-                ss->people[4].id1 | ss->people[5].id1) == 0) {
-         setup sstest = *ss;
-         sstest.swap_people(2, 7);
-         sstest.swap_people(3, 6);
-         sstest.kind = s_qtag;
+         else if ((ss->people[0].id1 | ss->people[1].id1 |
+                   ss->people[4].id1 | ss->people[5].id1) == 0) {
+            setup sstest = *ss;
+            sstest.swap_people(2, 7);
+            sstest.swap_people(3, 6);
+            sstest.kind = s_qtag;
 
-         if ((!(newtb & 010) ||
-              assoc(b_qtag, &sstest, calldeflist) ||
-              assoc(b_pmd, &sstest, calldeflist)) &&
-             (!(newtb & 001) ||
-              assoc(b_pqtag, &sstest, calldeflist) ||
-              assoc(b_dmd, &sstest, calldeflist))) {
-            *ss = sstest;
-            return 2;
+            if ((!(newtb & 010) ||
+                 assoc(b_qtag, &sstest, calldeflist) ||
+                 assoc(b_pmd, &sstest, calldeflist)) &&
+                (!(newtb & 001) ||
+                 assoc(b_pqtag, &sstest, calldeflist) ||
+                 assoc(b_dmd, &sstest, calldeflist))) {
+               *ss = sstest;
+               return 2;
+            }
          }
       }
 
@@ -3342,12 +3345,11 @@ static int divide_the_setup(
          goto divide_us_no_recompute;
       }
 
-      // See if this call has applicable 2x2 definition, in which case split into boxes.
-
-      if (assoc(b_2x2, ss, calldeflist)) goto divide_us_no_recompute;
-
       if (must_do_mystic)
          goto do_mystically;
+
+      // See if this call has applicable 2x2 definition, in which case split into boxes.
+      if (assoc(b_2x2, ss, calldeflist)) goto divide_us_no_recompute;
 
       // See long comment above for s1x8.  The test cases for this are
       // "own the <points>, trade by flip the diamond", and
@@ -3703,7 +3705,27 @@ static int divide_the_setup(
    do_mystically:
 
    conc_cmd = ss->cmd;
-   inner_selective_move(ss, &conc_cmd, &conc_cmd, selective_key_dyp,
+
+   // It really isn't clear whether this is the right thing.  Mystic appears
+   // to mean "centers do the full call, in the full setup, mirror, while the
+   // ends do it normally".  There is definitely a notion of doing your part,
+   // in the whole setup, of the 8-person call.  But it appears that the call
+   // "trade" means to find someone with whom to trade, without getting too
+   // caught up in the "do your part in the whole setup" notion.  In particular,
+   // if we are in a (1/4 tag; trade and roll) setup, and we call "1/2 mystic
+   // spin the top", we want everyone to step to right or left hands mystically,
+   // and then trade mystically.  The centers do the trade in the center.  They
+   // don't "do their part".  So we check for the call "trade".  Perhaps there
+   // are other calls in this catagory, and it's quite complicated.  Perhaps
+   // the "selective_key_dyp_for_mystic" should only be used if the setup is
+   // a rigger or otherwise something for which the centers and ends trade
+   // by themselves.  Trade is a complicated call.
+
+   ss->cmd.cmd_misc3_flags |= CMD_MISC3__DOING_YOUR_PART;
+
+   inner_selective_move(ss, &conc_cmd, &conc_cmd,
+                        ss->cmd.callspec == base_calls[base_call_trade] ?
+                        selective_key_dyp_for_mystic : selective_key_dyp,
                         1, 0, false, 0, selector_centers, 0, 0, result);
    return 1;
 }

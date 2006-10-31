@@ -4703,7 +4703,7 @@ static bool do_misc_schema(
 
    foo1p->cmd_fraction = ss->cmd.cmd_fraction;
    foo2.cmd_fraction = ss->cmd.cmd_fraction;
-   ss->cmd.cmd_misc3_flags |= CMD_MISC3__NO_CHECK_LEVEL;
+   ss->cmd.cmd_misc3_flags |= CMD_MISC3__NO_CHECK_LEVEL|CMD_MISC3__DOING_YOUR_PART;
 
    if (the_schema == schema_select_leads) {
       inner_selective_move(ss, foo1p, &foo2,
