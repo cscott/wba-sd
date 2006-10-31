@@ -1180,7 +1180,7 @@ static void do_concept_parallelogram(
       map_code = MAPCODE(s2x2,3,mkbox,0);
    }
    else
-      map_code = MAPCODE(s2x4,1,mk,0);   // Plain parallelogram.
+      map_code = MAPCODE(s2x4,1,mk,1);   // Plain parallelogram.
 
    if (map_code == ~0UL)
       fail("Can't do this concept with parallelogram.");
@@ -1551,9 +1551,9 @@ static void do_concept_multiple_lines(
             code = MAPCODE(s1x4,4,MPKIND__SPLIT,0);
          }
          else if (ss->kind == sbigbigh)
-            code = MAPCODE(s1x4,4,MPKIND__NONISOTROPIC,1);
+            code = MAPCODE(s1x4,4,MPKIND__NONISOTROP2,1);
          else if (ss->kind == sbigbigx)
-            code = MAPCODE(s1x4,4,MPKIND__NONISOTROPIC,0);
+            code = MAPCODE(s1x4,4,MPKIND__NONISOTROP2,0);
          else
             fail("Must have quadruple 1x4's for this concept.");
       }
@@ -2126,8 +2126,9 @@ static void do_concept_do_phantom_boxes(
 {
    if (ss->kind != s2x8) fail("Must have a 2x8 setup for this concept.");
 
+   // We specify the CMD_MISC__NO_EXPAND_2 bit, to allow split phantom boxes split phantom CLW.
    divided_setup_move(ss, MAPCODE(s2x4,2,parseptr->concept->arg3,0),
-                      (phantest_kind) parseptr->concept->arg1, true, result);
+                      (phantest_kind) parseptr->concept->arg1, true, result, CMD_MISC__NO_EXPAND_2);
 }
 
 
@@ -2449,12 +2450,10 @@ static void do_concept_once_removed(
          // We allow "12 matrix", but do not require it.  We have no
          // idea whether it should be required.
          ss->cmd.cmd_final_flags.clear_heritbit(INHERITFLAG_12_MATRIX);
+         if (ss->kind == s_qtag) do_matrix_expansion(ss, CONCPROP__NEEDK_3X4, true);
          switch (ss->kind) {
          case s3x4:
-            map_code = spcmap_2x3_rmvr;
-            goto doit;
-         case s_qtag:
-            map_code = spcmap_2x3_rmvs;
+            map_code = MAPCODE(s2x3,2,MPKIND__REMOVED,1);
             goto doit;
          default:
             fail("Can't do this concept in this formation.");
@@ -2464,7 +2463,7 @@ static void do_concept_once_removed(
          ss->cmd.cmd_final_flags.clear_heritbit(INHERITFLAG_12_MATRIX);
          switch (ss->kind) {
          case s1x12:
-            map_code = MAPCODE(s1x6,2,MPKIND__REMOVED, 0);
+            map_code = MAPCODE(s1x6,2,MPKIND__REMOVED,0);
             goto doit;
          default:
             fail("Can't do this concept in this formation.");
@@ -2474,7 +2473,7 @@ static void do_concept_once_removed(
          ss->cmd.cmd_final_flags.clear_heritbit(INHERITFLAG_16_MATRIX);
          switch (ss->kind) {
          case s1x16:
-            map_code = MAPCODE(s1x8,2,MPKIND__REMOVED, 0);
+            map_code = MAPCODE(s1x8,2,MPKIND__REMOVED,0);
             goto doit;
          default:
             fail("Can't do this concept in this formation.");
@@ -2485,15 +2484,15 @@ static void do_concept_once_removed(
       }
 
       if (parseptr->concept->arg1) {
-         /* If this is the "once removed diamonds" concept, we only allow diamonds. */
+         // If this is the "once removed diamonds" concept, we only allow diamonds.
          if (ss->kind != s_qtag && ss->kind != s_rigger)
             fail("There are no once removed diamonds here.");
       }
       else {
 
-         /* If this is just the "once removed" concept, we do NOT allow the splitting of a
-            quarter-tag into diamonds -- although there is only one splitting axis than
-            will work, it is not generally accepted usage. */
+         // If this is just the "once removed" concept, we do NOT allow the splitting of a
+         // quarter-tag into diamonds -- although there is only one splitting axis that
+         // will work, it is not generally accepted usage.
          if (ss->kind == s_qtag)
             fail("You must use the \"once removed diamonds\" concept here.");
       }
@@ -2536,10 +2535,10 @@ static void do_concept_once_removed(
          map_code = MAPCODE(s_trngl4,2,MPKIND__NONISOTROPREM,1);
          break;
       case s_spindle:
-         map_code = spcmap_spndle_once_rem;
+         map_code = MAPCODE(sdmd,2,MPKIND__SPEC_ONCEREM,0);
          break;
       case s1x3dmd:
-         map_code = spcmap_1x3dmd_once_rem;
+         map_code = MAPCODE(s1x4,2,MPKIND__SPEC_ONCEREM,0);
          break;
       case s_qtag:
          map_code = MAPCODE(sdmd,2,MPKIND__REMOVED,1);
@@ -5340,31 +5339,53 @@ static void so_and_so_only_move(
 }
 
 
-static void do_concept_triple_diamonds(
+static void do_concept_multiple_diamonds(
    setup *ss,
    parse_block *parseptr,
    setup *result) THROW_DECL
 {
+   // Arg4 = the number of items.
    uint32 code;
 
-   switch (ss->kind) {
-   case s3dmd:
-      code = MAPCODE(sdmd,3,MPKIND__SPLIT,1); break;
-   case s3ptpd:
-      code = MAPCODE(sdmd,3,MPKIND__SPLIT,0); break;
-   case s_3mdmd:
-      code = MAPCODE(sdmd,3,MPKIND__NONISOTROPIC,1); break;
-   case s_3mptpd:
-      code = MAPCODE(sdmd,3,MPKIND__NONISOTROPIC,0); break;
-   default:
-      fail("Must have a triple diamond or 1/4 tag setup for this concept.");
-   }
+   if (parseptr->concept->arg4 == 3) {
+      switch (ss->kind) {
+      case s3dmd:
+         code = MAPCODE(sdmd,3,MPKIND__SPLIT,1); break;
+      case s3ptpd:
+         code = MAPCODE(sdmd,3,MPKIND__SPLIT,0); break;
+      case s_3mdmd:
+         code = MAPCODE(sdmd,3,MPKIND__NONISOTROPIC,1); break;
+      case s_3mptpd:
+         code = MAPCODE(sdmd,3,MPKIND__NONISOTROPIC,0); break;
+      default:
+         fail("Must have a triple diamond or 1/4 tag setup for this concept.");
+      }
 
-   do_triple_formation(ss, parseptr, code, result);
+      do_triple_formation(ss, parseptr, code, result);
+   }
+   else {
+      // See "do_triple_formation" for meaning of arg3.
+
+      switch (ss->kind) {
+      case s4dmd:
+         code = MAPCODE(sdmd,4,MPKIND__SPLIT,1); break;
+      case s4ptpd:
+         code = MAPCODE(sdmd,4,MPKIND__SPLIT,0); break;
+      case s_4mdmd:
+         code = MAPCODE(sdmd,4,MPKIND__NONISOTROP2,1); break;
+      case s_4mptpd:
+         code = MAPCODE(sdmd,4,MPKIND__NONISOTROP2,0); break;
+      default:
+         fail("Must have a quadruple diamond or 1/4 tag setup for this concept.");
+      }
+
+      ss->cmd.cmd_misc_flags |= parseptr->concept->arg3;
+      divided_setup_move(ss, code, phantest_ok, true, result);
+   }
 }
 
 
-static void do_concept_triple_formations(
+static void do_concept_multiple_formations(
    setup *ss,
    parse_block *parseptr,
    setup *result) THROW_DECL
@@ -5373,6 +5394,8 @@ static void do_concept_triple_formations(
    //   0 - triple lines or boxes
    //   1 - triple lines or diamonds
    //   2 - triple boxes or diamonds
+
+   // Arg4 = number of setups; always 3 at present.
 
    setup tempsetup = *ss;
 
@@ -5432,33 +5455,6 @@ static void do_concept_triple_formations(
    }
 
    do_triple_formation(&tempsetup, parseptr, ~0UL, result);
-}
-
-
-static void do_concept_quad_diamonds(
-   setup *ss,
-   parse_block *parseptr,
-   setup *result) THROW_DECL
-{
-   uint32 code;
-
-   // See "do_triple_formation" for meaning of arg2.
-
-   switch (ss->kind) {
-   case s4dmd:
-      code = MAPCODE(sdmd,4,MPKIND__SPLIT,1); break;
-   case s4ptpd:
-      code = MAPCODE(sdmd,4,MPKIND__SPLIT,0); break;
-   case s_4mdmd:
-      code = MAPCODE(sdmd,4,MPKIND__NONISOTROPIC,1); break;
-   case s_4mptpd:
-      code = MAPCODE(sdmd,4,MPKIND__NONISOTROPIC,0); break;
-   default:
-      fail("Must have a quadruple diamond or 1/4 tag setup for this concept.");
-   }
-
-   ss->cmd.cmd_misc_flags |= parseptr->concept->arg2;
-   divided_setup_move(ss, code, phantest_ok, true, result);
 }
 
 
@@ -6840,6 +6836,8 @@ static void do_concept_replace_nth_part(
          }
 
          ss->cmd = cmd;
+         // Re-enable setup expansion for final part of "sandwich".
+         ss->cmd.cmd_misc_flags &= ~CMD_MISC__NO_EXPAND_MATRIX;
       }
 
       copy_cmd_preserve_elong_and_expire(ss, result);
@@ -7528,15 +7526,21 @@ extern bool do_big_concept(
    }
 
    // If matrix expansion has already occurred, don't do it again,
-   // except for the special case: only the CMD_MISC__NO_EXPAND_1 bit is set,
+   // except for the special cases: only the CMD_MISC__NO_EXPAND_1 bit is set,
    // and this concept is some kind of "triple boxes".
+   // Also, only the CMD_MISC__NO_EXPAND_2 bit is set,
+   // and this concept is split phantom CLW.
 
-   if ((!(ss->cmd.cmd_misc_flags & CMD_MISC__NO_EXPAND_2)) &&
-       (!(ss->cmd.cmd_misc_flags & CMD_MISC__NO_EXPAND_1) ||
-        this_kind == concept_multiple_boxes ||
-        (this_kind == concept_triple_boxes_together && this_concept->arg5 == MPKIND__SPLIT) ||
-        this_kind == concept_quad_boxes_together))
-      do_matrix_expansion(ss, prop_bits_for_expansion, false);
+   if (!(ss->cmd.cmd_misc_flags & CMD_MISC__NO_EXPAND_AT_ALL)) {
+      if ((!(ss->cmd.cmd_misc_flags & CMD_MISC__NO_EXPAND_1) ||
+           (this_kind == concept_do_phantom_boxes && this_concept->arg3 == MPKIND__SPLIT) ||
+           this_kind == concept_multiple_boxes ||
+           this_kind == concept_triple_boxes_together ||
+           this_kind == concept_quad_boxes_together) &&
+          (!(ss->cmd.cmd_misc_flags & CMD_MISC__NO_EXPAND_2) ||
+           (this_kind == concept_do_phantom_2x4 && this_concept->arg3 == MPKIND__SPLIT)))
+         do_matrix_expansion(ss, prop_bits_for_expansion, false);
+   }
 
    // We can no longer do any matrix expansion, unless this is "phantom" and "tandem",
    // in which case we continue to allow it.  The code for the "C1 phantom" concept
@@ -7550,16 +7554,20 @@ extern bool do_big_concept(
    // However, we allow one case of "stacked phantom expansion":
    //   split phantom C/L/W (expanding to a 4x4 and thence a pair of 2x4's)
    //   followed by triple boxes (expanding each 2x4 to a 2x6).
-   // We do this by turning on only the first flag if the concept is
-   // split phantom C/L/W.  Most otherparts of the code will reject any
+   // We do this by turning on only CMD_MISC__NO_EXPAND_1 if the concept is
+   // split phantom C/L/W.  Most other parts of the code will reject any
    // further expansion if either flag is on.
+   //
+   // Also want split phantom boxes (expand to a 2x8 and thence a pair of 2x4's)
+   // followed by split phantom C/L/W.  We turn on CMD_MISC__NO_EXPAND_2.
 
    if (!(prop_bits & CONCPROP__MATRIX_OBLIVIOUS)) {
-      ss->cmd.cmd_misc_flags |= CMD_MISC__NO_EXPAND_1;
-
-      // Usually, we clear the other flag too.  But not if split phantom C/L/W.
-      if (this_kind != concept_do_phantom_2x4 || this_concept->arg3 != MPKIND__SPLIT)
+      if (this_kind == concept_do_phantom_2x4 && this_concept->arg3 == MPKIND__SPLIT)
+         ss->cmd.cmd_misc_flags |= CMD_MISC__NO_EXPAND_1;
+      else if (this_kind == concept_do_phantom_boxes && this_concept->arg3 == MPKIND__SPLIT)
          ss->cmd.cmd_misc_flags |= CMD_MISC__NO_EXPAND_2;
+      else
+         ss->cmd.cmd_misc_flags |= CMD_MISC__NO_EXPAND_AT_ALL;
    }
 
    // See if this concept can be invoked with "standard".  If so, it wants
@@ -7738,14 +7746,12 @@ const concept_table_item concept_table[] = {
     do_concept_quad_boxes_tog},                             // concept_quad_boxes_together
    {CONCPROP__NEEDK_2X6 | Nostandard_matrix_phantom,
     do_concept_triple_boxes_tog},                           // concept_triple_boxes_together
-   {CONCPROP__NEEDK_3DMD | CONCPROP__NO_STEP | Nostandard_matrix_phantom,
-    do_concept_triple_diamonds},                            // concept_triple_diamonds
+   {CONCPROP__NEED_ARG2_MATRIX | CONCPROP__NO_STEP | Nostandard_matrix_phantom,
+    do_concept_multiple_diamonds},                          // concept_multiple_diamonds
    {CONCPROP__NO_STEP | Nostandard_matrix_phantom,
-    do_concept_triple_formations},                          // concept_triple_formations
+    do_concept_multiple_formations},                        // concept_multiple_formations
    {CONCPROP__NEEDK_3DMD | CONCPROP__NO_STEP | Nostandard_matrix_phantom,
     do_concept_triple_diamonds_tog},                        // concept_triple_diamonds_together
-   {CONCPROP__NEEDK_4D_4PTPD | CONCPROP__NO_STEP | Nostandard_matrix_phantom,
-    do_concept_quad_diamonds},                              // concept_quad_diamonds
    {CONCPROP__NEEDK_4D_4PTPD | CONCPROP__NO_STEP | Nostandard_matrix_phantom,
     do_concept_quad_diamonds_tog},                          // concept_quad_diamonds_together
    {CONCPROP__NEED_ARG2_MATRIX | Nostep_phantom | CONCPROP__GET_MASK,
@@ -7873,7 +7879,8 @@ const concept_table_item concept_table[] = {
    {CONCPROP__NO_STEP, do_concept_rigger},                  // concept_rigger
    {CONCPROP__NO_STEP | CONCPROP__MATRIX_OBLIVIOUS,
     do_concept_wing},                                       // concept_wing
-   {CONCPROP__NO_STEP, common_spot_move},                   // concept_common_spot
+   {CONCPROP__NO_STEP | CONCPROP__MATRIX_OBLIVIOUS,
+    common_spot_move},                                      // concept_common_spot
    {CONCPROP__USE_SELECTOR | CONCPROP__SHOW_SPLIT,
     drag_someone_and_move},                                 // concept_drag
    {CONCPROP__NO_STEP | CONCPROP__GET_MASK,

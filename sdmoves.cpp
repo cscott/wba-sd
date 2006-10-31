@@ -1184,7 +1184,7 @@ struct checkitem {
    uint32 ypar;
    uint32 sigcheck;
    setup_kind new_setup;
-   int new_rot;
+   uint32 new_rot;     // 0x100 bit means this fudgine is severe.
    warning_index warning;
    const coordrec *new_checkptr;
    veryshort fixer[32];
@@ -1299,13 +1299,17 @@ static const checkitem checktable[] = {
    {0x00770055, 0x01400420, s_2stars, 0, warn__none, (const coordrec *) 0, {127}},
 
    // Inner wing did a tow-truck-like operation from a rigger, for example,
-   // after a sets in motion.  Fudge to a 1/4 tag.
-   {0x00620026, 0x01008404, s_qtag, 0, warn__none, (const coordrec *) 0,
+   // after a sets in motion.  Fudge to a 1/4 tag.  This is serious fudging, and marked as such with the "0x100".
+   {0x00620026, 0x01008404, s_qtag, 0x100, warn__none, (const coordrec *) 0,
     {-2, 2, -4, 5, 2, 2, 5, 5, 2, -2, 4, -5, -2, -2, -5, -5, 127}},
 
    // Similar to the above, but truck was from a deepxwv.
    {0x00620066, 0x11100400, s_qtag, 0, warn__none, (const coordrec *) 0,
     {-2, 6, -4, 5, 2, 6, 5, 5, 2, -6, 4, -5, -2, -6, -5, -5, 127}},
+
+   // Inner people did a 1/2 E.R.A. from a deepxwv.
+   {0x00A60066, 0x08000600, s_crosswave, 0, warn__none, (const coordrec *) 0,
+    {10, 0, 9, 0, 6, 0, 5, 0, -10, 0, -9, 0, -6, 0, -5, 0, 127}},
 
    // Inner wing did a 1/2 tow truck from a crosswave.  We want a thar.
    {0x00750066, 0x08400220, s_thar, 0, warn__none, (const coordrec *) 0,
@@ -1461,6 +1465,7 @@ static void finish_matrix_call(
    int nump,
    bool do_roll_stability,
    bool allow_collisions,
+   bool allow_fudging,
    setup *people,
    setup *result) THROW_DECL
 {
@@ -1553,6 +1558,9 @@ static void finish_matrix_call(
    // sending them to be placed in the final setup.  That final
    // setup placement can be very picky.
    if (p->fixer[0] != 127) {
+      if ((p->new_rot & 0x100) && !allow_fudging)
+         fail("Can't figure out result setup.");
+
       for (i=0; i<nump; i++) {
          for (k=0; k<32 && p->fixer[k]!=127; k+=4) {
             if (matrix_info[i].x == p->fixer[k] && matrix_info[i].y == p->fixer[k+1]) {
@@ -1571,7 +1579,7 @@ static void finish_matrix_call(
    else
       checkptr = setup_attrs[p->new_setup].setup_coords;
 
-   result->rotation = p->new_rot;
+   result->rotation = p->new_rot & 3;
    result->kind = checkptr->result_kind;
 
    int doffset = 32 - (1 << (checkptr->xfactor-1));
@@ -1687,7 +1695,7 @@ static void matrixmove(
       // This call split the setup in every possible way.
       result->result_flags.maximize_split_info();
 
-   finish_matrix_call(matrix_info, nump, true, false, &people, result);
+   finish_matrix_call(matrix_info, nump, true, false, true, &people, result);
 
    reinstate_rotation(ss, result);
    clear_result_flags(result);
@@ -1749,6 +1757,38 @@ static void do_pair(
          int base = (qqq->dir & 2) ? 0 : 2;
          if ((flags & MTX_IGNORE_NONSELECTEES) || qqq->sel) base |= 4;
          do_part_of_pair(qqq, base^flip, callstuff);
+      }
+
+      if (flags & MTX_MIRROR_IF_RIGHT_OF_CTR) {
+         int relative_ppp_x = (ppp->dir & 1) ? ppp->nicey : ppp->nicex;
+         if ((ppp->dir+1) & 2) relative_ppp_x = -relative_ppp_x;
+         int relative_qqq_x = (qqq->dir & 1) ? qqq->nicey : qqq->nicex;
+         if ((qqq->dir+1) & 2) relative_qqq_x = -relative_qqq_x;
+
+         if (relative_ppp_x > 0 && relative_qqq_x > 0) {
+            ppp->mirror_this_op = true;
+            qqq->mirror_this_op = true;
+            // Make this pair of people anchor in the other direction, by
+            // negating their rotation, swapping their Y motions, and swapping
+            // and negating their X motions.
+            ppp->deltarot = (-ppp->deltarot) & 3;
+            qqq->deltarot = (-qqq->deltarot) & 3;
+            int ttt = ppp->deltax;
+            ppp->deltax = -qqq->deltax;
+            qqq->deltax = -ttt;
+            ttt = ppp->deltay;
+            ppp->deltay = qqq->deltay;
+            qqq->deltay = ttt;
+            // Switch the roll direction.
+            ppp->roll_stability_info ^=
+               (((ppp->roll_stability_info+NDBROLL_BIT) >> 1) & NDBROLL_BIT) * 3;
+            qqq->roll_stability_info ^=
+               (((qqq->roll_stability_info+NDBROLL_BIT) >> 1) & NDBROLL_BIT) * 3;
+            // The stability info is too hard to fix at this point.
+            // It will be handled later.
+         }
+         else if (relative_ppp_x >= 0 || relative_qqq_x >= 0)
+            fail("People are not anchoring consistently.");
       }
    }
    else {    // Doing "drag" concept.
@@ -2252,10 +2292,10 @@ static void partner_matrixmove(
       }
    }
 
-   finish_matrix_call(matrix_info, nump, true, false, &people, result);
+   finish_matrix_call(matrix_info, nump, true, false, true, &people, result);
    reinstate_rotation(ss, result);
 
-   // Take out any active phantoms that we placed..
+   // Take out any active phantoms that we placed.
 
    if (did_active_phantoms) {
       for (i=0; i<=attr::slimit(result); i++) {
@@ -2271,10 +2311,11 @@ static void partner_matrixmove(
 // This treats res2 as though it had rotation zero.
 // Res1 is allowed to have rotation.
 extern void brute_force_merge(const setup *res1, const setup *res2,
-                              bool allow_collisions, setup *result) THROW_DECL
+                              merge_action action, setup *result) THROW_DECL
 {
    int i;
    int r = res1->rotation & 3;
+   bool allow_collisions = action >= merge_strict_matrix_but_colliding_merge;
 
    // First, check if the setups are nice enough for the matrix stuff,
    // as indicated by having both "setup_coords" and "nice_setup_coords".
@@ -2312,7 +2353,8 @@ extern void brute_force_merge(const setup *res1, const setup *res2,
       // Note that, because we set deltarot above, we must NOT turn on the
       // "do_roll_stability" argument here.  It would treat the rotation
       // as though the person had actually done a call.
-      finish_matrix_call(matrix_info, nump, false, allow_collisions, &people, result);
+      finish_matrix_call(matrix_info, nump, false, allow_collisions,
+                         action > merge_strict_matrix_but_colliding_merge, &people, result);
       return;
    }
 
@@ -2452,7 +2494,7 @@ extern void drag_someone_and_move(setup *ss, parse_block *parseptr, setup *resul
    }
 
    ss->rotation += result->rotation;
-   finish_matrix_call(second_matrix_info, final_2nd_nump, true, false, &second_people, result);
+   finish_matrix_call(second_matrix_info, final_2nd_nump, true, false, true, &second_people, result);
    reinstate_rotation(ss, result);
    clear_result_flags(result);
 }
@@ -2464,8 +2506,8 @@ extern void anchor_someone_and_move(
    parse_block *parseptr,
    setup *result)  THROW_DECL
 {
+   enum { MAX_GROUPS = 12 };
    setup people;
-   const int MAX_GROUPS = 12;
    matrix_rec before_matrix_info[9];
    matrix_rec after_matrix_info[9];
    int i, j, k, nump, numgroups;
@@ -2661,7 +2703,7 @@ extern void anchor_someone_and_move(
       after_matrix_info[i].dir = 0;
    }
 
-   finish_matrix_call(after_matrix_info, nump, false, false, &people, result);
+   finish_matrix_call(after_matrix_info, nump, false, false, true, &people, result);
    reinstate_rotation(&saved_start_people, result);
    clear_result_flags(result);
 }

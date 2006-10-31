@@ -44,7 +44,7 @@
 //    string is also required by paragraphs 2(a) and 2(c) of the GNU
 //    General Public License if you distribute the file.
 
-version "36.64"
+version "36.7"
 
 call "nothing" mainstream tag nullcall
             dont_use_in_resolve
@@ -865,6 +865,10 @@ call "counter@O rotate@P" c1 tag ctr_rot
       array [0 CR1N AL5S 0 AL1S CR5N]
    setup ptrngl trngl rotate
       array [AL3S CR1N CR2N CR3N AL1S AL2S]
+   setup trngl4 trngl4 rotate
+      array [0 0 CR2N AL7S 0 0 AL2S CR7N]
+   setup ptrngl4 trngl4 rotate
+      array [AL4S 0 CR2N CR3N CR4N 0 AL2S AL3S]
    setup dmd dmd rotate
       array [CR0N 0 AL0S 0]
    setup pmd dmd rotate
@@ -970,15 +974,6 @@ call "counter@O rotate@P" c1 tag ctr_rot
    setup 2x8 2x8 rotate restriction forbidden 4x4couples_only
       array [CR0N CR1N CR2N CR3N AL12S AL13S AL14S AL15S
             AL0S AL1S AL2S AL3S CR12N CR13N CR14N CR15N]
-
-/* Used to be this:
-   setup 2x4 c1phan plus_eighth_rotation
-      array [CR0N CR3N AL2W AL1W AL4W AL7W CR14N CR13N]
-   setup 4x2 c1phan plus_eighth_rotation
-      array [CR0N CR2N CR7N CR5N AL4W AL6W AL11W AL9W]
-  I now think the 4x4 result is better.
-*/
-
             alternate_definition [half] c1
    setup 2x4 4x4 plus_eighth_rotation
       array [CR10N CR15N AL15W AL13W AL14W AL3W CR11N CR9N]
@@ -989,8 +984,6 @@ call "counter@O rotate@P" c1 tag ctr_rot
       array [CR10N CR15N AL15W AL13W AL14W AL3W CR11N CR9N]
    setup 4x2 4x4 plus_eighth_rotation
       array [CR10N CR15N CR3N CR1N AL14W AL3W AL7W AL5W]
-
-
 
 call "counter rotate for sidetrack" dontshow tag ctr_rot_for_sidetrack
             parallel_conc_end       // This makes it win if we tell the ends only to do it.
@@ -1979,9 +1972,9 @@ call "collapse the setup" c4a
             fudge_to_q_tag cross_is_inherited intlk_is_inherited
    conc stepnfold [inherit_cross inherit_intlk] endsdetour [conc_demand_lines conc_force_columns endscando]
 
-/* Another name.  That's right, we don't check that they are actual diamonds.
-  Callers frequently abuse the terminology in this way (as in "dixie style to a wave"
-   that doesn't go to a wave), so we will let them abuse this terminology too. */
+// Another name.  That's right, we don't check that they are actual diamonds.
+// Callers frequently abuse the terminology in this way (as in "dixie style to a wave"
+// that doesn't go to a wave), so we will let them abuse this terminology too.
 call "collapse the diamonds" c4a
             fudge_to_q_tag cross_is_inherited intlk_is_inherited
    conc stepnfold [inherit_cross inherit_intlk] endsdetour [conc_demand_lines conc_force_columns endscando]
@@ -4391,7 +4384,7 @@ call "@6 @eright@f anchor 3/4" c4a
       [0 0 0 0 CR18W 14 CR18W 14 CR16W 16 CR16W 16 0 0 0 0 0 0 0 0]
 
 call "@eright@f anchor 1/4" c4a
-            left_means_mirror partnermatrix must_face_same_way
+   left_means_mirror partnermatrix must_face_same_way
       [CR18E 18 CR18E 18 CR16E 16 CR16E 16 0 0 0 0 0 0 0 0 0 0 0 0]
             left_means_mirror
    setup 2x2 2x2
@@ -4402,11 +4395,59 @@ call "@eright@f anchor 1/2" c4a
       [CR20S 16 CR20S 16 CR16S 16 CR16S 16 0 0 0 0 0 0 0 0 0 0 0 0]
 
 call "@eright@f anchor 3/4" c4a
-            left_means_mirror partnermatrix must_face_same_way
+   left_means_mirror partnermatrix must_face_same_way
       [CR18W 14 CR18W 14 CR16W 16 CR16W 16 0 0 0 0 0 0 0 0 0 0 0 0]
             left_means_mirror no_elongation_allowed
    setup 2x2 2x2
       array [CR2W CR1W 0 0]
+
+call "@6 in anchor 1/4" c4a
+   partnermatrix lateral_mirror_if_right_of_center use_selector ignore_nonselectees must_face_same_way
+      [0 0 0 0 CR18E 18 CR18E 18 CR16E 16 CR16E 16 0 0 0 0 0 0 0 0]
+
+call "@6 in anchor 1/2" c4a
+   partnermatrix lateral_mirror_if_right_of_center use_selector ignore_nonselectees must_face_same_way
+      [0 0 0 0 CR20S 16 CR20S 16 CR16S 16 CR16S 16 0 0 0 0 0 0 0 0]
+
+call "@6 in anchor 3/4" c4a
+   partnermatrix lateral_mirror_if_right_of_center use_selector ignore_nonselectees must_face_same_way
+      [0 0 0 0 CR18W 14 CR18W 14 CR16W 16 CR16W 16 0 0 0 0 0 0 0 0]
+
+call "in anchor 1/4" c4a
+   partnermatrix lateral_mirror_if_right_of_center must_face_same_way
+      [CR18E 18 CR18E 18 CR16E 16 CR16E 16 0 0 0 0 0 0 0 0 0 0 0 0]
+
+call "in anchor 1/2" c4a
+   partnermatrix lateral_mirror_if_right_of_center must_face_same_way
+      [CR20S 16 CR20S 16 CR16S 16 CR16S 16 0 0 0 0 0 0 0 0 0 0 0 0]
+
+call "in anchor 3/4" c4a
+   partnermatrix lateral_mirror_if_right_of_center must_face_same_way
+      [CR18W 14 CR18W 14 CR16W 16 CR16W 16 0 0 0 0 0 0 0 0 0 0 0 0]
+
+call "@6 out anchor 1/4" c4a
+   partnermatrix lateral_mirror_if_right_of_center use_selector ignore_nonselectees must_face_same_way
+      [0 0 0 0 AL16W 16 AL16W 16 AL14W 18 AL14W 18 0 0 0 0 0 0 0 0]
+
+call "@6 out anchor 1/2" c4a
+   partnermatrix lateral_mirror_if_right_of_center use_selector ignore_nonselectees must_face_same_way
+      [0 0 0 0 AL16S 16 AL16S 16 AL12S 16 AL12S 16 0 0 0 0 0 0 0 0]
+
+call "@6 out anchor 3/4" c4a
+   partnermatrix lateral_mirror_if_right_of_center use_selector ignore_nonselectees must_face_same_way
+      [0 0 0 0 AL16E 16 AL16E 16 AL14E 14 AL14E 14 0 0 0 0 0 0 0 0]
+
+call "out anchor 1/4" c4a
+   partnermatrix lateral_mirror_if_right_of_center must_face_same_way
+      [AL16W 16 AL16W 16 AL14W 18 AL14W 18 0 0 0 0 0 0 0 0 0 0 0 0]
+
+call "out anchor 1/2" c4a
+   partnermatrix lateral_mirror_if_right_of_center must_face_same_way
+      [AL16S 16 AL16S 16 AL12S 16 AL12S 16 0 0 0 0 0 0 0 0 0 0 0 0]
+
+call "out anchor 3/4" c4a
+   partnermatrix lateral_mirror_if_right_of_center must_face_same_way
+      [AL16E 16 AL16E 16 AL14E 14 AL14E 14 0 0 0 0 0 0 0 0 0 0 0 0]
 
 call "@6 squeeze" c1
             dont_use_in_resolve
@@ -6480,6 +6521,12 @@ call "latch on @b" c3a
    seq everyonerollright [inherit_left]
    seq hinge_with_warn [repeat_n]
 
+call "_like a slide thru" dontshow tag likeaslidethru
+   setup 1x1 1x1
+      preds "Unknown sex."
+         if boyp [CR0E]
+         if girlp [AL0W]
+
 call "slide thru" mainstream tag slidethru
             rear_back_from_r_wave funny_means_those_facing
    setup 2x1 1x2
@@ -6490,7 +6537,10 @@ call "slide thru" mainstream tag slidethru
    setup 2x1 1x2 rotate
       preds "Unknown sex."
          if boyp [CR1E 0]
-         if girlp [1W 0]    /* We don't know how she turns. */
+         if girlp [CAL1W 0]
+            rear_back_from_r_wave visible_fractions twisted_is_inherited
+   seq passthru [inherit_twisted]
+   seq likeaslidethru []
 
 call "slide thru in miniwave" dontshow tag slidethru_in_miniwave
    setup 1x2 1x2 rotate qualifier miniwaves
@@ -6501,7 +6551,7 @@ call "slide thru in miniwave" dontshow tag slidethru_in_miniwave
 call "half breed thru" a1
             rear_back_from_r_wave visible_fractions twisted_is_inherited funny_is_inherited
    seq passthru [inherit_twisted inherit_funny]
-   seq brace_yourself  []
+   seq brace_yourself []
 
 call "brace yourself" c4 tag brace_yourself
    setup 1x2 1x2 qualifier left opposite_sex restriction forbidden couples_only
@@ -9441,6 +9491,7 @@ call "derby" c4 tag derby
 
 call "_start dixie style" dontshow tag start_dixie
             left_means_mirror reverse_means_mirror no_elongation_allowed
+            rear_back_from_qtag
    setup 2x2 1x4 rotate qualifier not_split_dixie
       array [0 0 ZM1W ZM2W]
    setup 2x2 2x2 qualifier split_dixie
@@ -9476,7 +9527,7 @@ call "_start dixie style" dontshow tag start_dixie
 
 call "dixie style to a wave" mainstream tag full_dixie
             visible_fractions
-            split_like_dixie_style rear_back_from_wave_or_qtag
+            split_like_dixie_style
             single_is_inherited singlefile_is_inherited twisted_is_inherited
             nxn_is_inherited mxn_is_inherited fractal_is_inherited
             left_means_mirror reverse_means_mirror
@@ -9486,7 +9537,7 @@ call "dixie style to a wave" mainstream tag full_dixie
 
 call "dixie diamond" c1
             visible_fractions
-            split_like_dixie_style rear_back_from_wave_or_qtag
+            split_like_dixie_style
             singlefile_is_inherited twisted_is_inherited magic_is_inherited
             fractal_is_inherited left_means_mirror reverse_means_mirror
    seq full_dixie [inherit_left inherit_reverse inherit_singlefile
@@ -9495,7 +9546,7 @@ call "dixie diamond" c1
 
 call "dixie sashay" c1
             visible_fractions
-            split_like_dixie_style rear_back_from_wave_or_qtag
+            split_like_dixie_style
             singlefile_is_inherited twisted_is_inherited magic_is_inherited
             nxn_is_inherited mxn_is_inherited fractal_is_inherited
             left_means_mirror reverse_means_mirror
@@ -9504,7 +9555,7 @@ call "dixie sashay" c1
    seq slither [inherit_nxn inherit_mxn inherit_twisted]
 
 call "dixie derby" c3x
-            split_like_dixie_style rear_back_from_wave_or_qtag
+            split_like_dixie_style
             singlefile_is_inherited twisted_is_inherited nxn_is_inherited
             yoyo_is_inherited fractal_is_inherited left_means_mirror reverse_means_mirror
    seq full_dixie [inherit_left inherit_reverse inherit_singlefile
@@ -9513,7 +9564,7 @@ call "dixie derby" c3x
 
 call "dixie spin" c4a
             visible_fractions
-            split_like_dixie_style rear_back_from_wave_or_qtag
+            split_like_dixie_style
             singlefile_is_inherited twisted_is_inherited
             fractal_is_inherited left_means_mirror reverse_means_mirror
    seq full_dixie [inherit_left inherit_reverse inherit_singlefile
@@ -9529,7 +9580,7 @@ call "_ctrs pass thru" dontshow tag ctrs_pass_thru
 
 call "dixie chain" c4
             visible_fractions
-            split_like_dixie_style rear_back_from_wave_or_qtag
+            split_like_dixie_style
             singlefile_is_inherited twisted_is_inherited
             left_means_mirror reverse_means_mirror
    seq start_dixie [inherit_left inherit_reverse inherit_singlefile inherit_twisted]
@@ -9538,7 +9589,7 @@ call "dixie chain" c4
 
 call "dixie chain to a wave" c4x
             visible_fractions
-            split_like_dixie_style rear_back_from_wave_or_qtag
+            split_like_dixie_style
             singlefile_is_inherited twisted_is_inherited
             left_means_mirror reverse_means_mirror
    seq start_dixie [inherit_left inherit_reverse inherit_singlefile inherit_twisted]
@@ -9547,7 +9598,7 @@ call "dixie chain to a wave" c4x
 
 call "dixie daisy" c4
             visible_fractions
-            split_like_dixie_style rear_back_from_wave_or_qtag
+            split_like_dixie_style
             singlefile_is_inherited twisted_is_inherited yoyo_is_inherited
             left_means_mirror reverse_means_mirror
    seq start_dixie [inherit_left inherit_reverse inherit_singlefile inherit_twisted]
@@ -9556,7 +9607,7 @@ call "dixie daisy" c4
 
 call "dixie daisy to a wave" c4
             visible_fractions
-            split_like_dixie_style rear_back_from_wave_or_qtag
+            split_like_dixie_style
             singlefile_is_inherited twisted_is_inherited yoyo_is_inherited
             left_means_mirror reverse_means_mirror
    seq start_dixie [inherit_left inherit_reverse inherit_singlefile inherit_twisted]
@@ -12325,19 +12376,28 @@ call "@6@C kickoff" c2 tag designeeskick
          if select [CR3W CR2W AL1E AL0E]
          if always [CM1E AM0W AM3W CM2E]
 
-call "centers@C kickoff" c2
+call "centers@C kickoff" c2 tag centerskick
    setup 1x4 1x4
       array [CM1E AL0E AM3W CR2W]
             alternate_definition [cross] c2
    setup 1x4 1x4
       array [CM1E CR2W AM3W AL0E]
 
-call "ends@C kickoff" c2
+call "ends@C kickoff" c2 tag endskick
    setup 1x4 1x4
       array [CR1W AM0W AL3E CM2E]
             alternate_definition [cross] c2
    setup 1x4 1x4
       array [CR3W AM0W AL1E CM2E]
+
+call "@6@C kick off" c2
+   alias designeeskick
+
+call "centers@C kick off" c2 
+   alias centerskick
+
+call "ends@C kick off" c2
+   alias endskick
 
 call "@6@C run by @9" c4x
             neednumber
@@ -16093,8 +16153,15 @@ call "chip off" c4a
 call "ship ahoy" c4a
    setup 2x4 2x4 rotate
       preds "???"
-         if outroller_is_cw [0 R1E L0E L7E M2W L5E L4W 0]
-         if always [R0E R7E L6E 0 0 R3W R2E M5W]
+         if outroller_is_cw [   0 CR1E AL0E AL7E ZM2W AL5E AL4W    0]
+         if always          [CR0E CR7E AL6E    0    0 CR3W CR2E ZM5W]
+   // Depending on how much of a purist one is about what "1x2"
+   // really means, one might consider this questionable.
+            alternate_definition [1x2] c4
+   setup 2x3 short6
+      preds "???"
+         if outroller_is_cw_2x3 [   0 CR2S AL1S ZM3N AL5S    0]
+         if always              [CR1S AL0S    0    0 CR3S ZM5N]
 
 call "_extend 1/4 to 1/2" dontshow tag extend_1_to_2
    setup pmd 2x2 qualifier in qtag_like
@@ -22922,6 +22989,13 @@ call "little" c1 tag little
                      endslittle [inherit_left inherit_straight conc_force_otherway
                                 only_force_elong_if_empty endscando]
 
+call "little but @m" c1 tag littlebut2nd
+            fudge_to_q_tag left_means_mirror
+            visible_fractions
+   conc4_2_or_normal nullsecond [mandatory_secondary_call]
+                     endslittle [inherit_left conc_force_otherway
+                                only_force_elong_if_empty endscando]
+
 call "_natural little" dontshow tag natural_little
             fudge_to_q_tag left_means_touch_or_check
    // Note that, when the ends are facing in, this is a plain right little
@@ -23078,6 +23152,12 @@ call "@2scoot @3and little" c1
             intlk_is_inherited yoyo_is_inherited cross_is_inherited
    seq scootback [or_anycall inherit_intlk inherit_yoyo inherit_cross]
    seq natural_little [inherit_left inherit_intlk]
+
+call "@2scoot @3and little but @m" c1
+            visible_fractions left_means_mirror
+            intlk_is_inherited yoyo_is_inherited cross_is_inherited
+   seq scootback [or_anycall inherit_intlk inherit_yoyo inherit_cross]
+   seq littlebut2nd [inherit_left]
 
 call "@2scoot @3and little, ends go as you are" c1
             left_means_mirror intlk_is_inherited yoyo_is_inherited cross_is_inherited
@@ -23356,7 +23436,8 @@ call "@2scoot @3and rally" c3a
    seq natural_rally [inherit_left inherit_intlk]
 
 call "@2scoot @3and rally but @m" c3a
-            left_means_mirror intlk_is_inherited yoyo_is_inherited first_part_visible
+            first_part_visible left_means_mirror
+            intlk_is_inherited yoyo_is_inherited
    seq rtqtagscootback [or_anycall inherit_left inherit_intlk inherit_yoyo]
    seq rallybut2nd [inherit_left inherit_intlk]
 

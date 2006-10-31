@@ -390,10 +390,9 @@ enum concept_kind {
    concept_multiple_boxes,
    concept_quad_boxes_together,
    concept_triple_boxes_together,
-   concept_triple_diamonds,
-   concept_triple_formations,
+   concept_multiple_diamonds,
+   concept_multiple_formations,
    concept_triple_diamonds_together,
-   concept_quad_diamonds,
    concept_quad_diamonds_together,
    concept_triangular_boxes,
    concept_in_out_std,
@@ -3432,16 +3431,15 @@ enum {
    CMD_MISC__EXPLICIT_MATRIX      = 0x00004000UL,
 
    CMD_MISC__NO_EXPAND_1          = 0x00008000UL,  // Allow only one triple box expansion.
-   CMD_MISC__NO_EXPAND_2          = 0x00010000UL,  // Positively no expansion.
-   CMD_MISC__NO_EXPAND_MATRIX = CMD_MISC__NO_EXPAND_1 | CMD_MISC__NO_EXPAND_2,
+   CMD_MISC__NO_EXPAND_2          = 0x00010000UL,  // Allow only one split phantom C/L/W expansion.
+   CMD_MISC__NO_EXPAND_AT_ALL     = 0x00020000UL,  // Positively no expansion.
+   CMD_MISC__NO_EXPAND_MATRIX = CMD_MISC__NO_EXPAND_1 | CMD_MISC__NO_EXPAND_2 | CMD_MISC__NO_EXPAND_AT_ALL,
+   CMD_MISC__DISTORTED            = 0x00040000UL,
+   CMD_MISC__OFFSET_Z             = 0x00080000UL,
+   CMD_MISC__SAID_SPLIT           = 0x00100000UL,
+   CMD_MISC__SAID_TRIANGLE        = 0x00200000UL,
+   CMD_MISC__DO_AS_COUPLES        = 0x00400000UL,
 
-   CMD_MISC__DISTORTED            = 0x00020000UL,
-   CMD_MISC__OFFSET_Z             = 0x00040000UL,
-   CMD_MISC__SAID_SPLIT           = 0x00080000UL,
-   CMD_MISC__SAID_TRIANGLE        = 0x00100000UL,
-   CMD_MISC__DO_AS_COUPLES        = 0x00200000UL,
-
-   // spare:                        0x00400000UL,
    // spare:                        0x00800000UL,
 
    CMD_MISC__NO_CHECK_MOD_LEVEL   = 0x01000000UL,
@@ -3571,8 +3569,7 @@ enum normalize_action {
 };
 
 // Beware!  There are >= tests lying around, so order is important.
-// In particular, sdconc (search for "brute_force_merge" has a test
-// "action >= merge_strict_matrix_but_colliding_merge".
+// In particular, sdconc (search for "brute_force_merge" has such tests.
 enum merge_action {
    merge_strict_matrix,
    merge_strict_matrix_but_colliding_merge,
@@ -4182,6 +4179,7 @@ enum mpkind {
    MPKIND__OVERLAP,
    MPKIND__OVERLAP14,
    MPKIND__OVERLAP34,
+   MPKIND__SPEC_MATRIX_OVERLAP,
    MPKIND__INTLK,
    MPKIND__CONCPHAN,
    MPKIND__INTLKDMD,
@@ -4189,6 +4187,7 @@ enum mpkind {
    MPKIND__MAGICINTLKDMD,
    MPKIND__NONISOTROPIC,
    MPKIND__NONISOTROP1,
+   MPKIND__NONISOTROP2,
    MPKIND__NONISOTROPREM,
    MPKIND__OFFS_L_ONEQ,
    MPKIND__OFFS_R_ONEQ,
@@ -4305,12 +4304,12 @@ enum specmapkind {
    spcmap_lh_ox,
    spcmap_rh_ox,
    spcmap_lh_c1phana,
-   spcmap_lh_c1phanb,
    spcmap_rh_c1phana,
+   spcmap_lh_c1phanb,
    spcmap_rh_c1phanb,
    spcmap_lh_s2x3_3,
-   spcmap_lh_s2x3_2,
    spcmap_rh_s2x3_3,
+   spcmap_lh_s2x3_2,
    spcmap_rh_s2x3_2,
    spcmap_lh_s2x3_7,
    spcmap_rh_s2x3_7,
@@ -4331,14 +4330,15 @@ enum specmapkind {
    spcmap_diag23c,
    spcmap_diag23d,
    spcmap_f2x8_4x4,
+   spcmap_f2x8_4x4h,
    spcmap_w4x4_4x4,
+   spcmap_w4x4_4x4h,
    spcmap_f2x8_2x8,
+   spcmap_f2x8_2x8h,
    spcmap_w4x4_2x8,
    spcmap_emergency1,
    spcmap_emergency2,
    spcmap_fix_triple_turnstyle,
-   spcmap_spndle_once_rem,
-   spcmap_1x3dmd_once_rem,
    spcmap_2x2v,
    spcmap_2x4_magic,
    spcmap_ptp_magic,
@@ -4365,14 +4365,7 @@ enum specmapkind {
    spcmap_2x3_0145,
    spcmap_1x8_1x6,
    spcmap_rig_1x6,
-   spcmap_ov_hrg_1,
-   spcmap_ov_gal_1,
-   spcmap_3o_qtag_1,
-   spcmap_tgl4_1,
-   spcmap_tgl4_2,
    spcmap_qtag_2x3,
-   spcmap_2x3_rmvr,
-   spcmap_2x3_rmvs,
    spcmap_dbloff1,
    spcmap_dbloff2,
    spcmap_dhrgl1,
@@ -4576,7 +4569,7 @@ extern uint32 do_call_in_series(
    bool qtfudged) THROW_DECL;
 
 extern void brute_force_merge(const setup *res1, const setup *res2,
-                              bool allow_collisions, setup *result) THROW_DECL;
+                              merge_action action, setup *result) THROW_DECL;
 
 extern void drag_someone_and_move(setup *ss, parse_block *parseptr, setup *result) THROW_DECL;
 
@@ -4635,7 +4628,8 @@ extern void divided_setup_move(
    uint32 map_encoding,
    phantest_kind phancontrol,
    bool recompute_id,
-   setup *result) THROW_DECL;
+   setup *result,
+   unsigned int noexpand_bits_to_set = CMD_MISC__NO_EXPAND_1 | CMD_MISC__NO_EXPAND_2) THROW_DECL;
 
 extern void overlapped_setup_move(
    setup *ss,
@@ -4952,9 +4946,13 @@ extern void really_skip_one_concept(
    parse_block *incoming,
    skipped_concept_info & retstuff) THROW_DECL;
 
-extern bool fix_n_results(int arity, int goal, setup z[],
+extern bool fix_n_results(int arity,
+                          int goal,
+                          bool reorder_setups_2_and_3,
+                          setup z[],
                           uint32 & rotstates,
-                          uint32 & pointclip) THROW_DECL;
+                          uint32 & pointclip,
+                          uint32 fudgystupidrot) THROW_DECL;
 
 extern bool warnings_are_unacceptable(bool strict);
 

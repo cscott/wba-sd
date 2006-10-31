@@ -3443,7 +3443,7 @@ static int divide_the_setup(
       if ((assoc(b_1x2, ss, calldeflist) ||
            assoc(b_2x1, ss, calldeflist) ||
            assoc(b_1x1, ss, calldeflist))) {
-         division_code = spcmap_tgl4_1;
+         division_code = MAPCODE(s1x2,2,MPKIND__NONISOTROP2,0);
          goto divide_us_no_recompute;
       }
    }
