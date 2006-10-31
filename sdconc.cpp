@@ -2172,6 +2172,18 @@ static void inherit_conc_assumptions(
             /* 3/4 tag or line [whatever/0/1] go to facing out [lilo/0/2]. */
             this_assumption->assump_both ^= 3;
             goto got_new_assumption;
+
+         case cr_real_1_4_tag:
+         case cr_real_1_4_line:
+            this_assumption->assumption = cr_li_lo;
+            this_assumption->assump_both = 1;
+            goto got_new_assumption;
+         case cr_real_3_4_tag:
+         case cr_real_3_4_line:
+            this_assumption->assumption = cr_li_lo;
+            this_assumption->assump_both = 2;
+            goto got_new_assumption;
+
          case cr_ctr_miniwaves:
          case cr_ctr_couples:
             /* Either of those special assumptions means that the outsides
@@ -2929,7 +2941,7 @@ extern void concentric_move(
        analyzer == schema_in_out_quad ||
        analyzer == schema_in_out_12mquad ||
        analyzer == schema_concentric_others) {
-      if (fix_n_results(center_arity, -1, result_inner, rotstate, pointclip)) {
+      if (fix_n_results(center_arity, -1, false, result_inner, rotstate, pointclip, 0)) {
          result_inner[0].kind = nothing;
       }
       else if (!(rotstate & 0xF03)) fail("Sorry, can't do this orientation changer.");
@@ -3717,7 +3729,7 @@ extern void merge_setups(setup *ss, merge_action action, setup *result) THROW_DE
    // The only remaining hope is that the setups match and we can blindly combine them.
    // Our 180 degree rotation wouldn't work for triangles.
 
-   brute_force_merge(res1, res2, action >= merge_strict_matrix_but_colliding_merge, result);
+   brute_force_merge(res1, res2, action, result);
    goto final_getout;
 
  merge_concentric:
@@ -5180,7 +5192,7 @@ back_here:
             goto fooble;
          }
 
-         if (fix_n_results(numsetups, -1, lilresult, rotstate, pointclip)) goto lose;
+         if (fix_n_results(numsetups, -1, false, lilresult, rotstate, pointclip, 0)) goto lose;
          if (!(rotstate & 0xF03)) fail("Sorry, can't do this orientation changer.");
 
          this_result->clear_people();
