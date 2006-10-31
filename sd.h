@@ -3153,7 +3153,8 @@ class configuration {
    int text_line;          // How many lines of text existed after this item was written,
                            // only meaningful if "written_history_items" is >= this index.
 
-   static const resolve_tester *configuration::null_resolve_ptr;    /* in SDTOP */
+   // (gcc doesn't seem to like the redundant qualification here)
+   static const resolve_tester */*configuration::*/null_resolve_ptr;    /* in SDTOP */
 
  private:
    resolve_indicator resolve_flag;
