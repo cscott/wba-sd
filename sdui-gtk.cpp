@@ -27,7 +27,7 @@
 #define UI_VERSION_STRING "0.1"
 
 #define PACKAGE "sd"
-#define VERSION "36.57"
+#define VERSION "36.81"
 #define PACKAGE_DATA_DIR "/usr/share/sd"
 
 // This file defines all the functions in class iofull.
