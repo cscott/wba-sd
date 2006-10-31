@@ -3349,6 +3349,10 @@ These restrictions are "overloaded" -- their meaning depends on the starting set
                                        "make magic".  This ignores any people in line-like
                                        orientation.
 
+   levelplus          R/Q           The current calling level is at least the indicated level.
+                                    There are also a1, a2, c1, c2, c3, and c4.
+
+
                            APPENDIX C -- QUALIFIERS
 
    none,                            any setup - this always passes (presumably to
@@ -3412,6 +3416,8 @@ These restrictions are "overloaded" -- their meaning depends on the starting set
 
    ripple_both_ends        Q        1x4, 1x6, 1x8 - both ends of the 1x4, 1x6, or 1x8, and only
                                     those people, are selected.
+
+   ripple_both_ends_1x4_only Q      1x4 - as above, but fails on 1x6 or 1x8.
 
    ripple_both_centers     Q        1x4 - both centers of the 1x4, and only those two
                                     people, are selected.

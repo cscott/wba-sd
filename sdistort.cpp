@@ -464,11 +464,17 @@ static void innards(
          }
       }
 
-      if (arity != 2 || (z[0].kind != s_trngl && z[0].kind != s_trngl4)) {
-         if (!(rotstate & 0xF03) && map_kind == MPKIND__SPLIT) {
+      if ((arity != 2 || (z[0].kind != s_trngl && z[0].kind != s_trngl4)) && (rotstate & 0xF03) == 0) {
+         if (map_kind == MPKIND__SPLIT) {
             if (!(rotstate & 0x0F0))
                fail("Can't do this orientation changer.");
             map_kind = MPKIND__NONISOTROP2;
+         }
+         else if (map_kind == MPKIND__OVERLAP) {
+            // Would like to set MPKIND__OVLP_NONISOTROP2, but this doesn't seem to be a good idea.
+            // This might occur if we have overlap of 2x4's facing differently.  Unfortunately,
+            // what "50% offset" means isn't well defined.
+            fail("Can't do this orientation changer.");
          }
       }
    }

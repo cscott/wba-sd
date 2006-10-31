@@ -940,6 +940,21 @@ static bool x22_cpltest(setup *real_people, int real_index,
 }
 
 /* ARGSUSED */
+static bool whos_on_base(setup *real_people, int real_index,
+   int real_direction, int northified_index, const long int *extra_stuff)
+{
+   if (real_people->result_flags.misc & (RESULTFLAG__IMPRECISE_ROT | RESULTFLAG__PLUSEIGHTH_ROT))
+      fail("Rotation is imprecise or is 45 degrees.");
+
+   if (real_people->kind == s_alamo)
+      real_index = 12+(real_index<<1);
+
+   uint32 N = current_options.number_fields & NUMBER_FIELD_MASK;
+   if (N < 1 || N > 4) fail("Number must be between 1 and 4.");
+   return ((((real_index + *extra_stuff) >> 2) + N) & 3) == 0;
+}
+
+/* ARGSUSED */
 static bool facing_test(setup *real_people, int real_index,
    int real_direction, int northified_index, const long int *extra_stuff)
 {
@@ -2619,6 +2634,10 @@ predicate_descriptor pred_table[] = {
       {q_tag_check, (const long int *) &q_tag_front_action},     // "q_tag_front"
       {q_tag_check, (const long int *) &q_tag_back_action},      // "q_tag_back"
       {q_tag_check, (const long int *) &q_line_front_action},    // "q_line_front"
-      {q_tag_check, (const long int *) &q_line_back_action}};    // "q_line_back"
+      {q_tag_check, (const long int *) &q_line_back_action},     // "q_line_back"
+      {whos_on_base,                   &iden_tab[0]},            // "base_is_across"
+      {whos_on_base,                   &iden_tab[4]},            // "base_is_right"
+      {whos_on_base,                   &iden_tab[8]},            // "base_is_here"
+      {whos_on_base,                   &iden_tab[12]}};          // "base_is_left"
 
 int selector_preds = PREDS_BEFORE_THIS_POINT;

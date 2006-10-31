@@ -851,6 +851,7 @@ char *schematab[] = {
    "maybematrix_conc_star",
    "maybematrix_conc_bar",
    "checkpoint",
+   "checkpoint_mystic_ok",
    "cross_checkpoint",
    "reverse_checkpoint",
    "ckpt_star",
@@ -1459,6 +1460,10 @@ char *predtab[] = {
    "q_tag_back",
    "q_line_front",
    "q_line_back",
+   "base_is_across",
+   "base_is_right",
+   "base_is_here",
+   "base_is_left",
    ""};
 
 /* The "tag table" is the table that we use to bind together things like

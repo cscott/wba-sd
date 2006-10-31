@@ -1283,6 +1283,9 @@ static calldef_schema concentrify(
       else if (ss->kind != s_qtag && ss->kind != s_spindle && ss->kind != s3x1dmd)
          analyzer_result = schema_1313_concentric;
       break;
+   case schema_checkpoint_mystic_ok:
+      analyzer_result = schema_checkpoint;
+      break;
    case schema_single_concentric:      // Completely straightforward ones.
    case schema_3x3k_concentric:
    case schema_4x4k_concentric:
@@ -1752,7 +1755,7 @@ static bool fix_empty_outers(
       result_outer->result_flags.misc |= 1;
       result_outer->rotation = 1;
    }
-   else if (analyzer == schema_checkpoint) {
+   else if (analyzer == schema_checkpoint || analyzer == schema_checkpoint_mystic_ok) {
       result_outer->kind = s2x2;
       result_outer->clear_people();
       clear_result_flags(result_outer);
@@ -1956,12 +1959,16 @@ static bool this_call_preserves_shape(const setup *begin, setup_kind sss)
    calldefn *def = &begin->cmd.callspec->the_defn;
    if (!def) return false;
 
-   if ((def->schema == schema_nothing ||
-        def->schema == schema_nothing_noroll)) return true;
-   else if (def->schema == schema_by_array &&
-            (def->stuff.arr.def_list->callarray_list->callarray_flags & CAF__ROT) == 0 &&
-            (setup_kind) def->stuff.arr.def_list->callarray_list->end_setup == sss &&
-            (begin_kind) def->stuff.arr.def_list->callarray_list->start_setup == setup_attrs[sss].keytab[0])
+   if ((def->schema == schema_nothing || def->schema == schema_nothing_noroll)) return true;
+
+   if (def->schema != schema_by_array ||
+       (def->stuff.arr.def_list->callarray_list->callarray_flags & CAF__ROT) != 0 ||
+       (setup_kind) def->stuff.arr.def_list->callarray_list->end_setup != sss)
+      return false;
+
+   begin_kind bb = (begin_kind) def->stuff.arr.def_list->callarray_list->start_setup;
+
+   if (bb == setup_attrs[sss].keytab[0] || bb == setup_attrs[sss].keytab[1])
       return true;
 
    else return false;
@@ -2038,7 +2045,9 @@ static bool fix_empty_inners(
          result_inner->kind = s1x2;
          result_inner->rotation = orig_elong_flags & 1;
       }
-      else if (this_call_preserves_shape(begin_inner, s1x4)) {
+      else if (this_call_preserves_shape(begin_inner, s1x2) ||
+               this_call_preserves_shape(begin_inner, s2x2) ||
+               this_call_preserves_shape(begin_inner, s1x4)) {
          // Restore the original bunch of phantoms.
          *result_inner = *begin_inner;
          clear_result_flags(result_inner);
@@ -3267,8 +3276,8 @@ extern void concentric_move(
                final_elongation ^= 3;
             }
             else if (DFM1_CONC_FORCE_OTHERWAY & localmods1) {
-               // But we don't obey this flag unless we did the whole call.
-               if (begin_outer.cmd.cmd_fraction.is_null())
+               // But we don't obey this flag unless we did the whole call.  (Or it's a checkpoint.)
+               if (analyzer == schema_checkpoint || begin_outer.cmd.cmd_fraction.is_null())
                   final_elongation ^= 3;
             }
             else if (DFM1_CONC_FORCE_SPOTS & localmods1) {
@@ -5008,6 +5017,9 @@ extern void inner_selective_move(
             goto do_concentric_ends;
          }
       }
+   }
+   else if (orig_indicator == selective_key_dyp_for_mystic) {
+      action = normalize_to_4;
    }
 
 back_here:

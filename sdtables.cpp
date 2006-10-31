@@ -1792,6 +1792,14 @@ map::map_thing map::map_init_table[] = {
     s4x4,2,MPKIND__OVERLAP,0,     0,  s4x6,      0x000, 0},
    {{0, 1, 5, 11, 7, 8, 9, 10,         1, 2, 3, 4, 6, 7, 11, 5},
     s_qtag,2,MPKIND__OVERLAP,0,   0,  s3dmd,     0x000, 0},
+
+   // This helps with things like triple boxes working together rotary spin.
+   // We may have been confused about what "step to a left-handed wave and cast off 3/4"
+   // meant for the absent centers, so we may have gone to 1/4 tags with absent centers,
+   // rather than 2x4's with absent centers.  This makes it work anyway.
+   {{3, 8, -1, -1, 11, 0, -1, -1,         5, 6, -1, -1, 9, 2, -1, -1},
+    s_qtag,2,MPKIND__OVERLAP,1,   0,  s2x6,      0x005, 0},
+
    {{9, 0, 10, 8, 5, 7, 11, 1,         11, 1, 5, 7, 3, 6, 4, 2},
     s_ptpd,2,MPKIND__OVERLAP,0,   0,  s3ptpd,    0x000, 0},
    {{15, 16, 17, 8, 7, 6, 9, 10, 11, 12, 13, 14,
@@ -2588,6 +2596,8 @@ static expand::thing step_tby_stuff = {{5, 6, 7, 0, 1, 2, 3, 4}, 8, nothing, s_q
 static expand::thing step_2x4_rig_stuff = {{7, 0, 1, 2, 3, 4, 5, 6}, 8, nothing, s_rigger, 0};
 static expand::thing step_bone_stuff = {{1, 4, 7, 6, 5, 0, 3, 2}, 8, s_bone, s1x8, 0};
 static expand::thing step_bone_rigstuff = {{7, 2, 4, 1, 3, 6, 0, 5}, 8, s_bone, s_rigger, 0};
+static expand::thing step_qtag_rigstuff = {{6, 7, 1, 0, 2, 3, 5, 4}, 8, s_qtag, s_rigger, 1};
+static expand::thing step_rig_bonestuff = {{7, 2, 4, 1, 3, 6, 0, 5}, 8, s_rigger, s_bone, 0};
 static expand::thing step_rig_stuff = {{2, 7, 4, 5, 6, 3, 0, 1}, 8, s_rigger, s1x8, 0};
 static expand::thing step_2x1d_stuff = {{0, 1, 5, 3, 4, 2}, 6, s_1x2dmd, s1x6, 0};
 
@@ -2758,18 +2768,30 @@ full_expand::thing touch_init_table3[] = {
    {warn__some_touch, 0, &step_tgl4_stuffb,   s_trngl4,     0xF0UL,       0x20UL, ~0UL},
    {warn__some_touch, 0, &step_tgl4_stuffb,   s_trngl4,     0x0FUL,       0x02UL, ~0UL},
 
-   // Ends touch from a "bone" to a tidal wave.
+   // Ends touch from a bone to a tidal wave.
    {warn__some_touch, 0, &step_bone_stuff,    s_bone,     0xFFFFUL,     0xA802UL, 0xFFFFUL},
    {warn__some_touch, 0, &step_bone_stuff,    s_bone,     0xFFFFUL,     0xA208UL, 0xFFFFUL},
    // Same, but we get a 3&1 or inverted line, from which fan the top is legal.
    {warn__some_touch, 32, &step_bone_stuff,   s_bone,     0xFFFFUL,     0xAA00UL, 0xFFFFUL},
    {warn__some_touch, 32, &step_bone_stuff,   s_bone,     0xFFFFUL,     0xA00AUL, 0xFFFFUL},
 
-   // All touch from a "bone" to a rigger.
+   // All touch from a bone to a rigger.
    {warn__none,       0, &step_bone_rigstuff, s_bone,     0xFFFFUL,     0xAD07UL, 0xFFFFUL},
    // Same, with missing people.
    {warn__none,       0, &step_bone_rigstuff, s_bone,     0xF0F0UL,     0xAD07UL, 0xF0F0UL},
    {warn__none,       0, &step_bone_rigstuff, s_bone,     0x0F0FUL,     0xAD07UL, 0x0F0FUL},
+
+   // All touch from a suitable qtag to a rigger.
+   {warn__none,       0, &step_qtag_rigstuff, s_qtag,     0xFFFFUL,     0x7DD7UL, 0xFFFFUL},
+   // Same, with missing people.
+   {warn__none,       0, &step_qtag_rigstuff, s_qtag,     0xF0F0UL,     0x7DD7UL, 0xF0F0UL},
+   {warn__none,       0, &step_qtag_rigstuff, s_qtag,     0x0F0FUL,     0x7DD7UL, 0x0F0FUL},
+
+   // All touch from a rigger to a bone.
+   {warn__none,       0, &step_rig_bonestuff, s_rigger,   0xFFFFUL,     0xAD07UL, 0xFFFFUL},
+   // Same, with missing people.
+   {warn__none,       0, &step_rig_bonestuff, s_rigger,   0xF0F0UL,     0xAD07UL, 0xF0F0UL},
+   {warn__none,       0, &step_rig_bonestuff, s_rigger,   0x0F0FUL,     0xAD07UL, 0x0F0FUL},
 
    // Centers touch from a "rigger" to a tidal wave.
    {warn__some_touch, 0, &step_rig_stuff,     s_rigger,   0xFFFFUL,     0xA802UL, 0xFFFFUL},
@@ -8020,6 +8042,8 @@ const schema_attr schema_attrs[] = {
     schema_nothing},                     // schema_maybe_matrix_conc_bar
    {0,
     schema_nothing},                     // schema_checkpoint
+   {SCA_SNAGOK,
+    schema_nothing},                     // schema_checkpoint_mystic_ok
    {SCA_CROSS | SCA_COPY_LYZER,
     schema_checkpoint},                  // schema_cross_checkpoint
    {SCA_DETOUR,
