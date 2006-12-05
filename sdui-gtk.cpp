@@ -27,7 +27,7 @@
 #define UI_VERSION_STRING "0.1"
 
 #define PACKAGE "sd"
-#define VERSION "36.81"
+#define VERSION "37.0"
 #define PACKAGE_DATA_DIR "/usr/share/sd"
 
 // This file defines all the functions in class iofull.
@@ -827,8 +827,10 @@ on_key_snoop(GtkWidget *grab_widget, GdkEventKey *event, gpointer func_data) {
    if (gtk_widget_is_ancestor(main_entry, grab_widget) &&
        gtk_widget_is_focus(main_entry) &&
        event->type==GDK_KEY_PRESS &&
-       // no shift keys (although caps-lock is okay)
-       0== (event->state & (GDK_MODIFIER_MASK-GDK_RELEASE_MASK-GDK_LOCK_MASK)))
+       // no shift keys (although caps-lock & num-lock is okay)
+       // numlock is bound to GDK_MOD2_MASK in Debian, although this might
+       // not be standard (sigh)
+       0== (event->state & (GDK_MODIFIER_MASK-GDK_RELEASE_MASK-GDK_LOCK_MASK-GDK_MOD2_MASK)))
       switch (event->keyval) {
       case GDK_ISO_Enter:
       case GDK_KP_Enter:
@@ -2027,7 +2029,7 @@ bool iofull::get_call_command(uims_reply *reply_p)
    else {
       // Reject off-level concept accelerator key presses.
       if (!allowing_all_concepts && my_reply == ui_concept_select &&
-          user_match.match.concept_ptr->level > higher_acceptable_level[calling_level])
+          user_match.match.concept_ptr->level > calling_level)
          goto startover;
 
       call_conc_option_state save_stuff = user_match.match.call_conc_options;
